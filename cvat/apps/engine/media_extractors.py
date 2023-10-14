@@ -31,7 +31,6 @@ from utils.dataset_manifest import VideoManifestManager, ImageManifestManager
 
 ORIENTATION_EXIF_TAG = 274
 
-
 class ORIENTATION(IntEnum):
     NORMAL_HORIZONTAL=1
     MIRROR_HORIZONTAL=2
@@ -41,7 +40,6 @@ class ORIENTATION(IntEnum):
     NORMAL_90_ROTATED=6
     MIRROR_HORIZONTAL_90_ROTATED=7
     NORMAL_270_ROTATED=8
-
 
 def get_mime(name):
     for type_name, type_def in MEDIA_TYPES.items():
@@ -82,21 +80,8 @@ def image_size_within_orientation(img: Image):
         return img.height, img.width
     return img.width, img.height
 
-def rotate_within_exif(img: Image):
-    orientation = img.getexif().get(ORIENTATION_EXIF_TAG,  ORIENTATION.NORMAL_HORIZONTAL)
-    if orientation in [ORIENTATION.NORMAL_180_ROTATED, ORIENTATION.MIRROR_VERTICAL]:
-        img = img.rotate(180, expand=True)
-    elif orientation in [ORIENTATION.NORMAL_270_ROTATED, ORIENTATION.MIRROR_HORIZONTAL_90_ROTATED]:
-        img = img.rotate(90, expand=True)
-    elif orientation in [ORIENTATION.NORMAL_90_ROTATED, ORIENTATION.MIRROR_HORIZONTAL_270_ROTATED]:
-        img = img.rotate(270, expand=True)
-    if orientation in [
-        ORIENTATION.MIRROR_HORIZONTAL, ORIENTATION.MIRROR_VERTICAL,
-        ORIENTATION.MIRROR_HORIZONTAL_270_ROTATED ,ORIENTATION.MIRROR_HORIZONTAL_90_ROTATED,
-    ]:
-        img = img.transpose(Image.FLIP_LEFT_RIGHT)
-
-    return img
+def has_exif_rotation(img: Image):
+    return img.getexif().get(ORIENTATION_EXIF_TAG, ORIENTATION.NORMAL_HORIZONTAL) != ORIENTATION.NORMAL_HORIZONTAL
 
 class IMediaReader(ABC):
     def __init__(self, source_path, step, start, stop, dimension):
@@ -126,7 +111,7 @@ class IMediaReader(ABC):
             preview = Image.open(obj)
         else:
             preview = obj
-        preview = rotate_within_exif(preview)
+        preview = ImageOps.exif_transpose(preview)
         # TODO - Check if the other formats work. I'm only interested in I;16 for now. Sorry @:-|
         # Summary:
         # Images in the Format I;16 definitely don't work. Most likely I;16B/L/N won't work as well.
@@ -226,8 +211,8 @@ class ImageListReader(IMediaReader):
             with open(self.get_path(i), 'rb') as f:
                 properties = ValidateDimension.get_pcd_properties(f)
                 return int(properties["WIDTH"]),  int(properties["HEIGHT"])
-        img = Image.open(self._source_path[i])
-        return image_size_within_orientation(img)
+        with Image.open(self._source_path[i]) as img:
+            return image_size_within_orientation(img)
 
     def reconcile(self, source_files, step=1, start=0, stop=None, dimension=DimensionType.DIM_2D, sorting_method=None):
         # FIXME
@@ -368,8 +353,8 @@ class ZipReader(ImageListReader):
             with open(self.get_path(i), 'rb') as f:
                 properties = ValidateDimension.get_pcd_properties(f)
                 return int(properties["WIDTH"]),  int(properties["HEIGHT"])
-        img = Image.open(io.BytesIO(self._zip_source.read(self._source_path[i])))
-        return image_size_within_orientation(img)
+        with Image.open(io.BytesIO(self._zip_source.read(self._source_path[i]))) as img:
+            return image_size_within_orientation(img)
 
     def get_image(self, i):
         if self._dimension == DimensionType.DIM_3D:
@@ -381,12 +366,24 @@ class ZipReader(ImageListReader):
 
     def get_path(self, i):
         if self._zip_source.filename:
-            return os.path.join(os.path.dirname(self._zip_source.filename), self._source_path[i]) \
-                if not self.extract_dir else os.path.join(self.extract_dir, self._source_path[i])
+            prefix = self._get_extract_prefix()
+            return os.path.join(prefix, self._source_path[i])
         else: # necessary for mime_type definition
             return self._source_path[i]
 
+    def __contains__(self, media_file):
+        return super().__contains__(os.path.relpath(media_file, self._get_extract_prefix()))
+
+    def _get_extract_prefix(self):
+        return self.extract_dir or os.path.dirname(self._zip_source.filename)
+
     def reconcile(self, source_files, step=1, start=0, stop=None, dimension=DimensionType.DIM_2D, sorting_method=None):
+        if source_files:
+            # file list is expected to be a processed output of self.get_path()
+            # which returns files with the output directory prefix
+            prefix = self._get_extract_prefix()
+            source_files = [os.path.relpath(fn, prefix) for fn in source_files]
+
         super().reconcile(
             source_files=source_files,
             step=step,
@@ -397,7 +394,7 @@ class ZipReader(ImageListReader):
         )
 
     def extract(self):
-        self._zip_source.extractall(self.extract_dir if self.extract_dir else os.path.dirname(self._zip_source.filename))
+        self._zip_source.extractall(self._get_extract_prefix())
         if not self.extract_dir:
             os.remove(self._zip_source.filename)
 
@@ -419,31 +416,26 @@ class VideoReader(IMediaReader):
 
         return False
 
-    def _decode(self, container):
-        frame_num = 0
-        for packet in container.demux():
-            if packet.stream.type == 'video':
+    def __iter__(self):
+        with self._get_av_container() as container:
+            stream = container.streams.video[0]
+            stream.thread_type = 'AUTO'
+            frame_num = 0
+            for packet in container.demux(stream):
                 for image in packet.decode():
                     frame_num += 1
                     if self._has_frame(frame_num - 1):
                         if packet.stream.metadata.get('rotate'):
-                            old_image = image
+                            pts = image.pts
                             image = av.VideoFrame().from_ndarray(
                                 rotate_image(
                                     image.to_ndarray(format='bgr24'),
-                                    360 - int(container.streams.video[0].metadata.get('rotate'))
+                                    360 - int(stream.metadata.get('rotate'))
                                 ),
                                 format ='bgr24'
                             )
-                            image.pts = old_image.pts
+                            image.pts = pts
                         yield (image, self._source_path[0], image.pts)
-
-    def __iter__(self):
-        container = self._get_av_container()
-        source_video_stream = container.streams.video[0]
-        source_video_stream.thread_type = 'AUTO'
-
-        return self._decode(container)
 
     def get_progress(self, pos):
         duration = self._get_duration()
@@ -455,38 +447,38 @@ class VideoReader(IMediaReader):
         return av.open(self._source_path[0])
 
     def _get_duration(self):
-        container = self._get_av_container()
-        stream = container.streams.video[0]
-        duration = None
-        if stream.duration:
-            duration = stream.duration
-        else:
-            # may have a DURATION in format like "01:16:45.935000000"
-            duration_str = stream.metadata.get("DURATION", None)
-            tb_denominator = stream.time_base.denominator
-            if duration_str and tb_denominator:
-                _hour, _min, _sec = duration_str.split(':')
-                duration_sec = 60*60*float(_hour) + 60*float(_min) + float(_sec)
-                duration = duration_sec * tb_denominator
-        return duration
+        with self._get_av_container() as container:
+            stream = container.streams.video[0]
+            duration = None
+            if stream.duration:
+                duration = stream.duration
+            else:
+                # may have a DURATION in format like "01:16:45.935000000"
+                duration_str = stream.metadata.get("DURATION", None)
+                tb_denominator = stream.time_base.denominator
+                if duration_str and tb_denominator:
+                    _hour, _min, _sec = duration_str.split(':')
+                    duration_sec = 60*60*float(_hour) + 60*float(_min) + float(_sec)
+                    duration = duration_sec * tb_denominator
+            return duration
 
     def get_preview(self, frame):
-        container = self._get_av_container()
-        stream = container.streams.video[0]
-        tb_denominator = stream.time_base.denominator
-        needed_time = int((frame / stream.guessed_rate) * tb_denominator)
-        container.seek(offset=needed_time, stream=stream)
-        for packet in container.demux(stream):
-            for frame in packet.decode():
-                return self._get_preview(frame.to_image() if not stream.metadata.get('rotate') \
-                    else av.VideoFrame().from_ndarray(
-                        rotate_image(
-                            frame.to_ndarray(format='bgr24'),
-                            360 - int(container.streams.video[0].metadata.get('rotate'))
-                        ),
-                        format ='bgr24'
-                    ).to_image()
-                )
+        with self._get_av_container() as container:
+            stream = container.streams.video[0]
+            tb_denominator = stream.time_base.denominator
+            needed_time = int((frame / stream.guessed_rate) * tb_denominator)
+            container.seek(offset=needed_time, stream=stream)
+            for packet in container.demux(stream):
+                for frame in packet.decode():
+                    return self._get_preview(frame.to_image() if not stream.metadata.get('rotate') \
+                        else av.VideoFrame().from_ndarray(
+                            rotate_image(
+                                frame.to_ndarray(format='bgr24'),
+                                360 - int(container.streams.video[0].metadata.get('rotate'))
+                            ),
+                            format ='bgr24'
+                        ).to_image()
+                    )
 
     def get_image_size(self, i):
         image = (next(iter(self)))[0]
@@ -596,8 +588,12 @@ class IChunkWriter(ABC):
 
     @staticmethod
     def _compress_image(image_path, quality):
-        image = image_path.to_image() if isinstance(image_path, av.VideoFrame) else Image.open(image_path)
-        image = rotate_within_exif(image)
+        if isinstance(image_path, av.VideoFrame):
+            image = image_path.to_image()
+        else:
+            with Image.open(image_path) as source_image:
+                image = ImageOps.exif_transpose(source_image)
+
         # Ensure image data fits into 8bit per pixel before RGB conversion as PIL clips values on conversion
         if image.mode == "I":
             # Image mode is 32bit integer pixels.
@@ -624,51 +620,97 @@ class IChunkWriter(ABC):
 
         converted_image = image.convert('RGB')
         image.close()
-        buf = io.BytesIO()
-        converted_image.save(buf, format='JPEG', quality=quality, optimize=True)
-        buf.seek(0)
-        width, height = converted_image.size
-        converted_image.close()
-        return width, height, buf
+        try:
+            buf = io.BytesIO()
+            converted_image.save(buf, format='JPEG', quality=quality, optimize=True)
+            buf.seek(0)
+            width, height = converted_image.size
+            return width, height, buf
+        finally:
+            converted_image.close()
 
     @abstractmethod
     def save_as_chunk(self, images, chunk_path):
         pass
 
 class ZipChunkWriter(IChunkWriter):
+    IMAGE_EXT = 'jpeg'
+    POINT_CLOUD_EXT = 'pcd'
+
+    def _write_pcd_file(self, image):
+        image_buf = open(image, "rb") if isinstance(image, str) else image
+        try:
+            properties = ValidateDimension.get_pcd_properties(image_buf)
+            w, h = int(properties["WIDTH"]), int(properties["HEIGHT"])
+            image_buf.seek(0, 0)
+            return io.BytesIO(image_buf.read()), self.POINT_CLOUD_EXT, w, h
+        finally:
+            if isinstance(image, str):
+                image_buf.close()
+
     def save_as_chunk(self, images, chunk_path):
         with zipfile.ZipFile(chunk_path, 'x') as zip_chunk:
             for idx, (image, path, _) in enumerate(images):
-                arcname = '{:06d}{}'.format(idx, os.path.splitext(path)[1])
-                if isinstance(image, io.BytesIO):
-                    zip_chunk.writestr(arcname, image.getvalue())
+                ext = os.path.splitext(path)[1].replace('.', '')
+                output = io.BytesIO()
+                if self._dimension == DimensionType.DIM_2D:
+                    with Image.open(image) as pil_image:
+                        if has_exif_rotation(pil_image):
+                            rot_image = ImageOps.exif_transpose(pil_image)
+                            try:
+                                if rot_image.format == 'TIFF':
+                                # https://pillow.readthedocs.io/en/stable/handbook/image-file-formats.html
+                                # use loseless lzw compression for tiff images
+                                    rot_image.save(output, format='TIFF', compression='tiff_lzw')
+                                else:
+                                    rot_image.save(
+                                        output,
+                                        format=rot_image.format if rot_image.format else self.IMAGE_EXT,
+                                        quality=100,
+                                        subsampling=0
+                                    )
+                            finally:
+                                rot_image.close()
+                        else:
+                            output = image
                 else:
-                    zip_chunk.write(filename=image, arcname=arcname)
+                    output, ext = self._write_pcd_file(image)[0:2]
+                arcname = '{:06d}.{}'.format(idx, ext)
+
+                if isinstance(output, io.BytesIO):
+                    zip_chunk.writestr(arcname, output.getvalue())
+                else:
+                    zip_chunk.write(filename=output, arcname=arcname)
         # return empty list because ZipChunkWriter write files as is
         # and does not decode it to know img size.
         return []
 
-class ZipCompressedChunkWriter(IChunkWriter):
-    def save_as_chunk(self, images, chunk_path):
+class ZipCompressedChunkWriter(ZipChunkWriter):
+    def save_as_chunk(
+        self, images, chunk_path, *, compress_frames: bool = True, zip_compress_level: int = 0
+    ):
         image_sizes = []
-        with zipfile.ZipFile(chunk_path, 'x') as zip_chunk:
+        with zipfile.ZipFile(chunk_path, 'x', compresslevel=zip_compress_level) as zip_chunk:
             for idx, (image, _, _) in enumerate(images):
                 if self._dimension == DimensionType.DIM_2D:
-                    w, h, image_buf = self._compress_image(image, self._image_quality)
-                    extension = "jpeg"
+                    if compress_frames:
+                        w, h, image_buf = self._compress_image(image, self._image_quality)
+                    else:
+                        assert isinstance(image, io.IOBase)
+                        image_buf = io.BytesIO(image.read())
+                        with Image.open(image_buf) as img:
+                            w, h = img.size
+                    extension = self.IMAGE_EXT
                 else:
-                    image_buf = open(image, "rb") if isinstance(image, str) else image
-                    properties = ValidateDimension.get_pcd_properties(image_buf)
-                    w, h = int(properties["WIDTH"]), int(properties["HEIGHT"])
-                    extension = "pcd"
-                    image_buf.seek(0, 0)
-                    image_buf = io.BytesIO(image_buf.read())
+                    image_buf, extension, w, h = self._write_pcd_file(image)
                 image_sizes.append((w, h))
                 arcname = '{:06d}.{}'.format(idx, extension)
                 zip_chunk.writestr(arcname, image_buf.getvalue())
         return image_sizes
 
 class Mpeg4ChunkWriter(IChunkWriter):
+    FORMAT = 'mp4'
+
     def __init__(self, quality=67):
         # translate inversed range [1:100] to [0:51]
         quality = round(51 * (100 - quality) / 99)
@@ -691,21 +733,20 @@ class Mpeg4ChunkWriter(IChunkWriter):
                 "preset": "ultrafast",
             }
 
-    def _create_av_container(self, path, w, h, rate, options, f='mp4'):
+    def _add_video_stream(self, container, w, h, rate, options):
         # x264 requires width and height must be divisible by 2 for yuv420p
         if h % 2:
             h += 1
         if w % 2:
             w += 1
 
-        container = av.open(path, 'w',format=f)
         video_stream = container.add_stream(self._codec_name, rate=rate)
         video_stream.pix_fmt = "yuv420p"
         video_stream.width = w
         video_stream.height = h
         video_stream.options = options
 
-        return container, video_stream
+        return video_stream
 
     def save_as_chunk(self, images, chunk_path):
         if not images:
@@ -714,16 +755,16 @@ class Mpeg4ChunkWriter(IChunkWriter):
         input_w = images[0][0].width
         input_h = images[0][0].height
 
-        output_container, output_v_stream = self._create_av_container(
-            path=chunk_path,
-            w=input_w,
-            h=input_h,
-            rate=self._output_fps,
-            options=self._codec_opts,
-        )
+        with av.open(chunk_path, 'w', format=self.FORMAT) as output_container:
+            output_v_stream = self._add_video_stream(
+                container=output_container,
+                w=input_w,
+                h=input_h,
+                rate=self._output_fps,
+                options=self._codec_opts,
+            )
 
-        self._encode_images(images, output_container, output_v_stream)
-        output_container.close()
+            self._encode_images(images, output_container, output_v_stream)
         return [(input_w, input_h)]
 
     @staticmethod
@@ -766,16 +807,16 @@ class Mpeg4CompressedChunkWriter(Mpeg4ChunkWriter):
         output_h = input_h // downscale_factor
         output_w = input_w // downscale_factor
 
-        output_container, output_v_stream = self._create_av_container(
-            path=chunk_path,
-            w=output_w,
-            h=output_h,
-            rate=self._output_fps,
-            options=self._codec_opts,
-        )
+        with av.open(chunk_path, 'w', format=self.FORMAT) as output_container:
+            output_v_stream = self._add_video_stream(
+                container=output_container,
+                w=output_w,
+                h=output_h,
+                rate=self._output_fps,
+                options=self._codec_opts,
+            )
 
-        self._encode_images(images, output_container, output_v_stream)
-        output_container.close()
+            self._encode_images(images, output_container, output_v_stream)
         return [(input_w, input_h)]
 
 def _is_archive(path):
@@ -894,10 +935,10 @@ class ValidateDimension:
         def write_header(fileObj, width, height):
             fileObj.writelines(f'{line}\n' for line in [
                 'VERSION 0.7',
-                'FIELDS x y z',
-                'SIZE 4 4 4',
-                'TYPE F F F',
-                'COUNT 1 1 1',
+                'FIELDS x y z intensity',
+                'SIZE 4 4 4 4',
+                'TYPE F F F F',
+                'COUNT 1 1 1 1',
                 f'WIDTH {width}',
                 f'HEIGHT {height}',
                 'VIEWPOINT 0 0 0 1 0 0 0',
@@ -911,8 +952,8 @@ class ValidateDimension:
             size_float = 4
             byte = f.read(size_float * 4)
             while byte:
-                x, y, z, _ = struct.unpack("ffff", byte)
-                list_pcd.append([x, y, z])
+                x, y, z, intensity = struct.unpack("ffff", byte)
+                list_pcd.append([x, y, z, intensity])
                 byte = f.read(size_float * 4)
         np_pcd = np.asarray(list_pcd)
         pcd_filename = path.replace(".bin", ".pcd")

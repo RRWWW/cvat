@@ -10,7 +10,7 @@ from .models import Invitation, Membership, Organization
 from cvat.apps.engine.serializers import BasicUserSerializer
 
 class OrganizationReadSerializer(serializers.ModelSerializer):
-    owner = BasicUserSerializer()
+    owner = BasicUserSerializer(allow_null=True)
     class Meta:
         model = Organization
         fields = ['id', 'slug', 'name', 'description', 'created_date',
@@ -49,7 +49,7 @@ class InvitationReadSerializer(serializers.ModelSerializer):
     organization = serializers.PrimaryKeyRelatedField(
         queryset=Organization.objects.all(),
         source='membership.organization')
-    owner = BasicUserSerializer()
+    owner = BasicUserSerializer(allow_null=True)
 
     class Meta:
         model = Invitation
@@ -112,6 +112,11 @@ class MembershipReadSerializer(serializers.ModelSerializer):
         fields = ['id', 'user', 'organization', 'is_active', 'joined_date', 'role',
             'invitation']
         read_only_fields = fields
+        extra_kwargs = {
+            'invitation': {
+                'allow_null': True, # owner of an organization does not have an invitation
+            }
+        }
 
 class MembershipWriteSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):

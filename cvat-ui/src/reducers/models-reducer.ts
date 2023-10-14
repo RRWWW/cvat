@@ -95,15 +95,17 @@ export default function (state = defaultState, action: ModelsActions | AuthActio
                 ...state,
                 fetching: false,
             };
+
             if (action.payload.model.kind === ModelKind.REID) {
                 return {
                     ...mutual,
                     reid: [...state.reid, action.payload.model],
                 };
             }
+
             return {
                 ...mutual,
-                [`${action.payload.model.kind}s`]: [...`${action.payload.model.kind}s`, action.payload.model],
+                [`${action.payload.model.kind}s`]: [...state[`${action.payload.model.kind}s`], action.payload.model],
             };
         }
         case ModelsActionTypes.SHOW_RUN_MODEL_DIALOG: {
@@ -145,11 +147,13 @@ export default function (state = defaultState, action: ModelsActions | AuthActio
         }
         case ModelsActionTypes.GET_INFERENCE_STATUS_FAILED: {
             const { inferences } = state;
-            delete inferences[action.payload.taskID];
 
             return {
                 ...state,
-                inferences: { ...inferences },
+                inferences: {
+                    ...inferences,
+                    [action.payload.taskID]: action.payload.activeInference,
+                },
             };
         }
         case ModelsActionTypes.CANCEL_INFERENCE_SUCCESS: {

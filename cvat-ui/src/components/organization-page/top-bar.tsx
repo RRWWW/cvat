@@ -8,6 +8,7 @@ import { useDispatch } from 'react-redux';
 import moment from 'moment';
 import { Row, Col } from 'antd/lib/grid';
 import Text from 'antd/lib/typography/Text';
+import Paragraph from 'antd/lib/typography/Paragraph';
 import Modal from 'antd/lib/modal';
 import Button from 'antd/lib/button';
 import Space from 'antd/lib/space';
@@ -280,7 +281,10 @@ function OrganizationTopBar(props: Props): JSX.Element {
                                 onClick={() => {
                                     Modal.confirm({
                                         onOk: () => {
-                                            dispatch(leaveOrganizationAsync(organizationInstance));
+                                            dispatch(leaveOrganizationAsync(organizationInstance, () => {
+                                                localStorage.removeItem('currentOrganization');
+                                                window.location.reload();
+                                            }));
                                         },
                                         className: 'cvat-modal-organization-leave-confirm',
                                         content: (
@@ -339,7 +343,14 @@ function OrganizationTopBar(props: Props): JSX.Element {
                     layout='vertical'
                     form={form}
                 >
-                    <Text>Invitation list: </Text>
+                    <Paragraph>
+                        <Text>Invite CVAT users to collaborate </Text>
+                    </Paragraph>
+                    <Paragraph>
+                        <Text type='secondary'>
+                            If the email address is registered on CVAT, the user will be added to the organization
+                        </Text>
+                    </Paragraph>
                     <Form.List name='users'>
                         {(fields, { add, remove }) => (
                             <>

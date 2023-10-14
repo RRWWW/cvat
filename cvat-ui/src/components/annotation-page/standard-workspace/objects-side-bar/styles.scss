@@ -3,7 +3,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-@import 'base.scss';
+@import 'base';
 
 .cvat-objects-appearance-collapse.ant-collapse {
     width: 100%;
@@ -111,18 +111,54 @@
 .cvat-objects-sidebar-issue-item {
     width: 100%;
     margin: 1px;
-    padding: 2px;
+    padding: $grid-unit-size;
+    border-left: 3px solid #ff7300;
+    border-bottom: 1px solid $border-color-1;
 
     &:hover {
-        padding: 0;
-
-        > .ant-alert {
-            border-width: 3px;
-        }
+        border-left: 4px solid #ff7300;
     }
 
     > .ant-alert.ant-alert-with-description {
         padding: $grid-unit-size $grid-unit-size $grid-unit-size $grid-unit-size * 8;
+    }
+
+    > .ant-row {
+        .ant-typography {
+            margin-bottom: 0;
+        }
+    }
+
+    p {
+        margin-bottom: 0;
+    }
+}
+
+.cvat-objects-sidebar-conflict-item {
+    width: 100%;
+    margin: 1px;
+    padding: $grid-unit-size;
+    border-left: 3px solid #e10602;
+    border-bottom: 1px solid $border-color-1;
+
+    p {
+        margin-bottom: 0;
+    }
+}
+
+.cvat-objects-sidebar-warning-item {
+    @extend .cvat-objects-sidebar-issue-item;
+}
+
+.cvat-objects-sidebar-item-active {
+    border-left-width: 4px;
+}
+
+.cvat-objects-sidebar-issue-resolved {
+    border-left: 3px solid $border-color-1;
+
+    &:hover {
+        border-left: 4px solid $border-color-1;
     }
 }
 
@@ -150,6 +186,10 @@
                 }
             }
         }
+    }
+
+    .cvat-objects-sidebar-show-ground-truth {
+        margin-right: $grid-unit-size;
     }
 }
 
@@ -183,7 +223,7 @@
 
 .cvat-objects-sidebar-state-item {
     width: 100%;
-    padding: 5px 3px 3px 3px;
+    padding: 5px 3px 3px;
     opacity: 1;
 
     > div:nth-child(1) {
@@ -263,7 +303,7 @@
 
 .cvat-object-item-radio-attribute {
     border: 1px double $border-color-hover;
-    border-radius: 7px 7px 7px 7px;
+    border-radius: 7px;
 
     > legend {
         text-align: center;
@@ -282,7 +322,7 @@
 
     > .ant-radio-group {
         display: grid;
-        padding: 1px 5px 1px 5px;
+        padding: 1px 5px;
     }
 }
 
@@ -303,7 +343,7 @@
 .cvat-objects-sidebar-label-item {
     height: 2.5em;
     border-bottom: 1px solid $border-color-1;
-    padding: 5px 3px 3px 3px;
+    padding: 5px 3px 3px;
 
     span {
         @extend .cvat-object-sidebar-icon;
@@ -420,7 +460,7 @@
     top: 8px;
     left: 50%;
     border-radius: 6px;
-    border: 1px solid $border-color-3;
+    border: 1px solid $border-color-1;
     z-index: 100;
     padding: $grid-unit-size * 0.5 $grid-unit-size * 2 $grid-unit-size * 0.5 $grid-unit-size * 0.5;
 
@@ -435,10 +475,6 @@
     padding: $grid-unit-size * 0.5;
     border: 1px solid $object-item-border-color;
     border-bottom: 0;
-    padding-top: 1px;
-    padding-left: 1px;
-    padding-right: 1px;
-    padding-bottom: 2px;
 
     &:last-child {
         border-bottom: 1px solid $object-item-border-color;
@@ -448,4 +484,10 @@
 .cvat-objects-sidebar-state-item-elements.cvat-objects-sidebar-state-active-element {
     border: 2px dashed $object-item-border-color;
     padding: 0;
+}
+
+.cvat-objects-sidebar-show-ground-truth-active {
+    path {
+        fill: #1890ff;
+    }
 }

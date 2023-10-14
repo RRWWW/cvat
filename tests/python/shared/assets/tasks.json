@@ -1,8 +1,102 @@
 {
-  "count": 15,
+  "count": 17,
   "next": null,
   "previous": null,
   "results": [
+    {
+      "assignee": null,
+      "bug_tracker": "",
+      "created_date": "2023-05-26T16:11:23.540000Z",
+      "data": 21,
+      "data_chunk_size": 72,
+      "data_compressed_chunk_type": "imageset",
+      "data_original_chunk_type": "imageset",
+      "dimension": "2d",
+      "guide_id": null,
+      "id": 22,
+      "image_quality": 70,
+      "jobs": {
+        "completed": 1,
+        "count": 2,
+        "url": "http://localhost:8080/api/jobs?task_id=22",
+        "validation": 0
+      },
+      "labels": {
+        "count": 2,
+        "url": "http://localhost:8080/api/labels?task_id=22"
+      },
+      "mode": "annotation",
+      "name": "task3_with_gt_job",
+      "organization": 2,
+      "overlap": 0,
+      "owner": {
+        "first_name": "User",
+        "id": 3,
+        "last_name": "Second",
+        "url": "http://localhost:8080/api/users/3",
+        "username": "user2"
+      },
+      "project_id": null,
+      "segment_size": 11,
+      "size": 11,
+      "source_storage": null,
+      "status": "validation",
+      "subset": "Train",
+      "target_storage": null,
+      "updated_date": "2023-05-26T16:17:02.635000Z",
+      "url": "http://localhost:8080/api/tasks/22"
+    },
+    {
+      "assignee": null,
+      "bug_tracker": "",
+      "created_date": "2023-03-27T19:08:07.649000Z",
+      "data": 20,
+      "data_chunk_size": 72,
+      "data_compressed_chunk_type": "imageset",
+      "data_original_chunk_type": "imageset",
+      "dimension": "2d",
+      "guide_id": null,
+      "id": 21,
+      "image_quality": 70,
+      "jobs": {
+        "completed": 0,
+        "count": 2,
+        "url": "http://localhost:8080/api/jobs?task_id=21",
+        "validation": 0
+      },
+      "labels": {
+        "count": 2,
+        "url": "http://localhost:8080/api/labels?task_id=21"
+      },
+      "mode": "annotation",
+      "name": "task with several jobs",
+      "organization": null,
+      "overlap": 0,
+      "owner": {
+        "first_name": "Admin",
+        "id": 1,
+        "last_name": "First",
+        "url": "http://localhost:8080/api/users/1",
+        "username": "admin1"
+      },
+      "project_id": null,
+      "segment_size": 6,
+      "size": 10,
+      "source_storage": {
+        "cloud_storage_id": null,
+        "id": 33,
+        "location": "local"
+      },
+      "status": "annotation",
+      "subset": "",
+      "target_storage": {
+        "cloud_storage_id": null,
+        "id": 34,
+        "location": "local"
+      },
+      "updated_date": "2023-03-27T19:08:40.032000Z",
+      "url": "http://localhost:8080/api/tasks/21"
+    },
     {
       "assignee": null,
       "bug_tracker": "",
@@ -12,12 +106,14 @@
       "data_compressed_chunk_type": "imageset",
       "data_original_chunk_type": "imageset",
       "dimension": "2d",
+      "guide_id": null,
       "id": 20,
       "image_quality": 70,
       "jobs": {
         "completed": 0,
         "count": 1,
-        "url": "http://localhost:8080/api/jobs?task_id=20"
+        "url": "http://localhost:8080/api/jobs?task_id=20",
+        "validation": 0
       },
       "labels": {
         "count": 2,
@@ -61,12 +157,14 @@
       "data_compressed_chunk_type": "imageset",
       "data_original_chunk_type": "imageset",
       "dimension": "2d",
+      "guide_id": null,
       "id": 19,
       "image_quality": 70,
       "jobs": {
         "completed": 0,
         "count": 1,
-        "url": "http://localhost:8080/api/jobs?task_id=19"
+        "url": "http://localhost:8080/api/jobs?task_id=19",
+        "validation": 0
       },
       "labels": {
         "count": 2,
@@ -110,12 +208,14 @@
       "data_compressed_chunk_type": "imageset",
       "data_original_chunk_type": "imageset",
       "dimension": "2d",
+      "guide_id": null,
       "id": 18,
       "image_quality": 70,
       "jobs": {
         "completed": 0,
         "count": 1,
-        "url": "http://localhost:8080/api/jobs?task_id=18"
+        "url": "http://localhost:8080/api/jobs?task_id=18",
+        "validation": 0
       },
       "labels": {
         "count": 1,
@@ -165,12 +265,14 @@
       "data_compressed_chunk_type": "imageset",
       "data_original_chunk_type": "imageset",
       "dimension": "2d",
+      "guide_id": null,
       "id": 17,
       "image_quality": 70,
       "jobs": {
         "completed": 0,
         "count": 1,
-        "url": "http://localhost:8080/api/jobs?task_id=17"
+        "url": "http://localhost:8080/api/jobs?task_id=17",
+        "validation": 0
       },
       "labels": {
         "count": 3,
@@ -206,12 +308,14 @@
       "data_compressed_chunk_type": "imageset",
       "data_original_chunk_type": "video",
       "dimension": "2d",
+      "guide_id": null,
       "id": 15,
       "image_quality": 70,
       "jobs": {
         "completed": 0,
         "count": 1,
-        "url": "http://localhost:8080/api/jobs?task_id=15"
+        "url": "http://localhost:8080/api/jobs?task_id=15",
+        "validation": 0
       },
       "labels": {
         "count": 2,
@@ -255,12 +359,14 @@
       "data_compressed_chunk_type": "imageset",
       "data_original_chunk_type": "imageset",
       "dimension": "2d",
+      "guide_id": null,
       "id": 14,
       "image_quality": 70,
       "jobs": {
         "completed": 0,
         "count": 1,
-        "url": "http://localhost:8080/api/jobs?task_id=14"
+        "url": "http://localhost:8080/api/jobs?task_id=14",
+        "validation": 0
       },
       "labels": {
         "count": 2,
@@ -310,12 +416,14 @@
       "data_compressed_chunk_type": "imageset",
       "data_original_chunk_type": "imageset",
       "dimension": "2d",
+      "guide_id": null,
       "id": 13,
       "image_quality": 70,
       "jobs": {
         "completed": 0,
         "count": 1,
-        "url": "http://localhost:8080/api/jobs?task_id=13"
+        "url": "http://localhost:8080/api/jobs?task_id=13",
+        "validation": 0
       },
       "labels": {
         "count": 2,
@@ -347,11 +455,13 @@
       "bug_tracker": "",
       "created_date": "2022-03-14T13:24:05.852000Z",
       "dimension": "2d",
+      "guide_id": null,
       "id": 12,
       "jobs": {
         "completed": 0,
         "count": 0,
-        "url": "http://localhost:8080/api/jobs?task_id=12"
+        "url": "http://localhost:8080/api/jobs?task_id=12",
+        "validation": 0
       },
       "labels": {
         "count": 1,
@@ -392,12 +502,14 @@
       "data_compressed_chunk_type": "imageset",
       "data_original_chunk_type": "imageset",
       "dimension": "2d",
+      "guide_id": null,
       "id": 11,
       "image_quality": 70,
       "jobs": {
         "completed": 0,
         "count": 1,
-        "url": "http://localhost:8080/api/jobs?task_id=11"
+        "url": "http://localhost:8080/api/jobs?task_id=11",
+        "validation": 0
       },
       "labels": {
         "count": 2,
@@ -447,12 +559,14 @@
       "data_compressed_chunk_type": "imageset",
       "data_original_chunk_type": "imageset",
       "dimension": "2d",
+      "guide_id": null,
       "id": 9,
       "image_quality": 70,
       "jobs": {
         "completed": 0,
         "count": 4,
-        "url": "http://localhost:8080/api/jobs?task_id=9"
+        "url": "http://localhost:8080/api/jobs?task_id=9",
+        "validation": 1
       },
       "labels": {
         "count": 2,
@@ -494,15 +608,17 @@
       "data_compressed_chunk_type": "imageset",
       "data_original_chunk_type": "imageset",
       "dimension": "2d",
+      "guide_id": null,
       "id": 8,
       "image_quality": 70,
       "jobs": {
         "completed": 0,
         "count": 1,
-        "url": "http://localhost:8080/api/jobs?task_id=8"
+        "url": "http://localhost:8080/api/jobs?task_id=8",
+        "validation": 0
       },
       "labels": {
-        "count": 2,
+        "count": 3,
         "url": "http://localhost:8080/api/labels?task_id=8"
       },
       "mode": "annotation",
@@ -523,7 +639,7 @@
       "status": "annotation",
       "subset": "",
       "target_storage": null,
-      "updated_date": "2022-03-05T08:52:34.908000Z",
+      "updated_date": "2023-05-02T09:28:57.638000Z",
       "url": "http://localhost:8080/api/tasks/8"
     },
     {
@@ -541,12 +657,14 @@
       "data_compressed_chunk_type": "imageset",
       "data_original_chunk_type": "imageset",
       "dimension": "2d",
+      "guide_id": null,
       "id": 7,
       "image_quality": 70,
       "jobs": {
         "completed": 0,
         "count": 1,
-        "url": "http://localhost:8080/api/jobs?task_id=7"
+        "url": "http://localhost:8080/api/jobs?task_id=7",
+        "validation": 0
       },
       "labels": {
         "count": 2,
@@ -582,12 +700,14 @@
       "data_compressed_chunk_type": "imageset",
       "data_original_chunk_type": "imageset",
       "dimension": "3d",
+      "guide_id": null,
       "id": 6,
       "image_quality": 70,
       "jobs": {
         "completed": 0,
         "count": 1,
-        "url": "http://localhost:8080/api/jobs?task_id=6"
+        "url": "http://localhost:8080/api/jobs?task_id=6",
+        "validation": 0
       },
       "labels": {
         "count": 1,
@@ -629,12 +749,14 @@
       "data_compressed_chunk_type": "imageset",
       "data_original_chunk_type": "video",
       "dimension": "2d",
+      "guide_id": null,
       "id": 5,
       "image_quality": 70,
       "jobs": {
         "completed": 0,
         "count": 1,
-        "url": "http://localhost:8080/api/jobs?task_id=5"
+        "url": "http://localhost:8080/api/jobs?task_id=5",
+        "validation": 0
       },
       "labels": {
         "count": 1,
@@ -676,12 +798,14 @@
       "data_compressed_chunk_type": "imageset",
       "data_original_chunk_type": "imageset",
       "dimension": "2d",
+      "guide_id": null,
       "id": 2,
       "image_quality": 70,
       "jobs": {
         "completed": 0,
         "count": 1,
-        "url": "http://localhost:8080/api/jobs?task_id=2"
+        "url": "http://localhost:8080/api/jobs?task_id=2",
+        "validation": 0
       },
       "labels": {
         "count": 2,

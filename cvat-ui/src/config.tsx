@@ -9,7 +9,6 @@ const UNDEFINED_ATTRIBUTE_VALUE = '__undefined__';
 const NO_BREAK_SPACE = '\u00a0';
 const CHANGELOG_URL = 'https://github.com/opencv/cvat/blob/develop/CHANGELOG.md';
 const LICENSE_URL = 'https://github.com/opencv/cvat/blob/develop/LICENSE';
-const GITTER_URL = 'https://gitter.im/opencv-cvat';
 const DISCORD_URL = 'https://discord.gg/fNR3eXfk6C';
 const GITHUB_URL = 'https://github.com/opencv/cvat';
 const GITHUB_IMAGE_URL = 'https://github.com/opencv/cvat/raw/develop/site/content/en/images/cvat.jpg';
@@ -124,13 +123,15 @@ const RESET_NOTIFICATIONS_PATHS = {
         '/auth',
     ],
 };
+const BUCKET_CONTENT_KEY = 'All files';
+
+const NUMERIC_VALUE_CLAMP_THRESHOLD = 5000;
 
 export default {
     UNDEFINED_ATTRIBUTE_VALUE,
     NO_BREAK_SPACE,
     CHANGELOG_URL,
     LICENSE_URL,
-    GITTER_URL,
     DISCORD_URL,
     GITHUB_URL,
     GITHUB_IMAGE_URL,
@@ -159,4 +160,6 @@ export default {
     CANVAS_WORKSPACE_DEFAULT_CONTEXT_HEIGHT,
     CONTROLS_LOGS_INTERVAL,
     RESET_NOTIFICATIONS_PATHS,
+    BUCKET_CONTENT_KEY,
+    NUMERIC_VALUE_CLAMP_THRESHOLD,
 };

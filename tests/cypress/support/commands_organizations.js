@@ -1,11 +1,13 @@
 // Copyright (C) 2022 Intel Corporation
+// Copyright (C) 2023 CVAT.ai Corporation
 //
 // SPDX-License-Identifier: MIT
 
 /// <reference types="cypress" />
 
 Cypress.Commands.add('createOrganization', (organizationParams) => {
-    cy.get('.cvat-header-menu-user-dropdown').trigger('mouseover');
+    cy.get('.cvat-header-menu-user-dropdown')
+        .should('exist').and('be.visible').trigger('mouseover');
     cy.get('.cvat-header-menu')
         .should('be.visible')
         .find('[role="menuitem"]')
@@ -15,6 +17,7 @@ Cypress.Commands.add('createOrganization', (organizationParams) => {
         .should('be.visible')
         .click();
     cy.url().should('contain', '/organizations/create');
+    const idWrapper = { id: null };
     cy.get('.cvat-create-organization-form').should('be.visible').within(() => {
         cy.get('#slug').type(organizationParams.shortName);
         cy.get('#name').type(organizationParams.fullName);
@@ -24,8 +27,14 @@ Cypress.Commands.add('createOrganization', (organizationParams) => {
         cy.get('#location').type(organizationParams.location);
         cy.intercept('POST', '/api/organizations**').as('createOrganizations');
         cy.get('[type="submit"]').click();
-        cy.wait('@createOrganizations').its('response.statusCode').should('equal', 201);
+        cy.wait('@createOrganizations')
+            .then((interception) => {
+                expect(interception.response.statusCode).to.equal(201);
+                idWrapper.id = interception.response.body.id;
+            });
     });
+    cy.get('.cvat-organization-page').should('exist').and('be.visible');
+    return cy.wrap(idWrapper);
 });
 
 Cypress.Commands.add('deleteOrganizations', (authResponse, otrganizationsToDelete) => {
@@ -109,13 +118,13 @@ Cypress.Commands.add('checkOrganizationExists', (organizationShortName, shouldEx
         .filter(':contains("Organization")')
         .trigger('mouseover');
     if (shouldExist) {
-        cy.contains('.cvat-header-menu-organization-item', organizationShortName)
-            .should('exist')
-            .trigger('mouseout')
-            .should('be.hidden');
+        cy.contains('.cvat-header-menu-organization-item', organizationShortName).should('exist');
+        cy.contains('.cvat-header-menu-organization-item', organizationShortName).trigger('mouseout');
+        cy.contains('.cvat-header-menu-organization-item', organizationShortName).should('be.hidden');
     } else {
         cy.contains('.cvat-header-menu-organization-item', organizationShortName).should('not.exist');
-        cy.get('.cvat-header-menu-active-organization-item').trigger('mouseout').should('be.hidden');
+        cy.get('.cvat-header-menu-active-organization-item').trigger('mouseout');
+        cy.get('.cvat-header-menu-active-organization-item').should('be.hidden');
     }
 });
 
@@ -139,7 +148,8 @@ Cypress.Commands.add('checkOrganizationMembers', (expectedMembersCount, expected
     cy.get('.cvat-organization-member-item').should('have.length', expectedMembersCount);
     cy.get('.cvat-organization-member-item-username').each((el) => {
         orgMembersUserameText.push(el.text());
-    }).then(() => {
+    });
+    cy.get('.cvat-organization-member-item-username').then(() => {
         expect(orgMembersUserameText).to.include.members(expectedOrganizationMembers);
     });
 });
@@ -150,11 +160,8 @@ Cypress.Commands.add('inviteMembersToOrganization', (members) => {
     cy.get('.cvat-organization-invitation-modal').should('be.visible');
     let addedMembers = 0;
     for (const el of members) {
-        cy.get('.cvat-organization-invitation-field-email')
-            .last()
-            .find('input')
-            .type(el.email)
-            .should('have.value', el.email);
+        cy.get('.cvat-organization-invitation-field-email').last().find('input').type(el.email);
+        cy.get('.cvat-organization-invitation-field-email').last().find('input').should('have.value', el.email);
         cy.get('.cvat-organization-invitation-field-email')
             .find('[aria-label="check-circle"]')
             .should('exist');

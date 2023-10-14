@@ -59,10 +59,13 @@ import {
     InteractionResult,
     InteractionData,
     ColorBy,
+    HighlightedElements,
+    HighlightSeverity,
 } from './canvasModel';
 
 export interface CanvasView {
     html(): HTMLDivElement;
+    setupConflictsRegions(clientID: number): number[];
 }
 
 export class CanvasViewImpl implements CanvasView, Listener {
@@ -97,6 +100,7 @@ export class CanvasViewImpl implements CanvasView, Listener {
     private autoborderHandler: AutoborderHandler;
     private interactionHandler: InteractionHandler;
     private activeElement: ActiveElement;
+    private highlightedElements: HighlightedElements;
     private configuration: Configuration;
     private snapToAngleResize: number;
     private innerObjectsFlags: {
@@ -864,7 +868,13 @@ export class CanvasViewImpl implements CanvasView, Listener {
                     }
                     if (e.altKey) {
                         const { points } = state;
-                        this.onEditDone(state, points.slice(0, pointID * 2).concat(points.slice(pointID * 2 + 2)));
+                        if (
+                            (state.shapeType === 'polygon' && state.points.length > 6) ||
+                            (state.shapeType === 'polyline' && state.points.length > 4) ||
+                            (state.shapeType === 'points' && state.points.length > 2)
+                        ) {
+                            this.onEditDone(state, points.slice(0, pointID * 2).concat(points.slice(pointID * 2 + 2)));
+                        }
                     } else if (e.shiftKey) {
                         this.onEditStart(state);
                         this.editHandler.edit({
@@ -1072,6 +1082,10 @@ export class CanvasViewImpl implements CanvasView, Listener {
             clientID: null,
             attributeID: null,
         };
+        this.highlightedElements = {
+            elementsIDs: [],
+            severity: null,
+        };
         this.configuration = model.configuration;
         this.mode = Mode.IDLE;
         this.snapToAngleResize = consts.SNAP_TO_ANGLE_RESIZE_DEFAULT;
@@ -1220,6 +1234,12 @@ export class CanvasViewImpl implements CanvasView, Listener {
         // Setup event handlers
         this.canvas.addEventListener('dblclick', (e: MouseEvent): void => {
             this.controller.fit();
+            this.canvas.dispatchEvent(
+                new CustomEvent('canvas.fit', {
+                    bubbles: false,
+                    cancelable: true,
+                }),
+            );
             e.preventDefault();
         });
 
@@ -1237,6 +1257,12 @@ export class CanvasViewImpl implements CanvasView, Listener {
         window.document.addEventListener('mouseup', this.onMouseUp);
         window.document.addEventListener('keydown', this.onShiftKeyDown);
         window.document.addEventListener('keyup', this.onShiftKeyUp);
+
+        for (const eventName of ['wheel', 'mousedown', 'dblclick', 'contextmenu']) {
+            this.attachmentBoard.addEventListener(eventName, (event) => {
+                event.stopPropagation();
+            });
+        }
 
         this.canvas.addEventListener('wheel', (event): void => {
             if (event.ctrlKey) return;
@@ -1319,7 +1345,8 @@ export class CanvasViewImpl implements CanvasView, Listener {
             const withUpdatingShapeViews = configuration.shapeOpacity !== this.configuration.shapeOpacity ||
                 configuration.selectedShapeOpacity !== this.configuration.selectedShapeOpacity ||
                 configuration.outlinedBorders !== this.configuration.outlinedBorders ||
-                configuration.colorBy !== this.configuration.colorBy;
+                configuration.colorBy !== this.configuration.colorBy ||
+                configuration.showConflicts !== this.configuration.showConflicts;
 
             if (configuration.displayAllText && !this.configuration.displayAllText) {
                 for (const i in this.drawnStates) {
@@ -1405,19 +1432,7 @@ export class CanvasViewImpl implements CanvasView, Listener {
                 this.background.setAttribute('height', `${image.renderHeight}px`);
 
                 if (ctx) {
-                    if (image.imageData instanceof ImageData) {
-                        ctx.scale(
-                            image.renderWidth / image.imageData.width,
-                            image.renderHeight / image.imageData.height,
-                        );
-                        ctx.putImageData(image.imageData, 0, 0);
-                        // Transformation matrix must not affect the putImageData() method.
-                        // By this reason need to redraw the image to apply scale.
-                        // https://www.w3.org/TR/2dcontext/#dom-context-2d-putimagedata
-                        ctx.drawImage(this.background, 0, 0);
-                    } else {
-                        ctx.drawImage(image.imageData, 0, 0);
-                    }
+                    ctx.drawImage(image.imageData, 0, 0, image.renderWidth, image.renderHeight);
                 }
 
                 if (model.imageIsDeleted) {
@@ -1460,14 +1475,8 @@ export class CanvasViewImpl implements CanvasView, Listener {
         } else if ([UpdateReasons.IMAGE_ZOOMED, UpdateReasons.IMAGE_FITTED].includes(reason)) {
             this.moveCanvas();
             this.transformCanvas();
-            if (reason === UpdateReasons.IMAGE_FITTED) {
-                this.canvas.dispatchEvent(
-                    new CustomEvent('canvas.fit', {
-                        bubbles: false,
-                        cancelable: true,
-                    }),
-                );
-            }
+        } else if (reason === UpdateReasons.IMAGE_ROTATED) {
+            this.transformCanvas();
         } else if (reason === UpdateReasons.IMAGE_MOVED) {
             this.moveCanvas();
         } else if (reason === UpdateReasons.OBJECTS_UPDATED) {
@@ -1500,6 +1509,8 @@ export class CanvasViewImpl implements CanvasView, Listener {
             }
         } else if (reason === UpdateReasons.SHAPE_ACTIVATED) {
             this.activate(this.controller.activeElement);
+        } else if (reason === UpdateReasons.SHAPE_HIGHLIGHTED) {
+            this.highlight(this.controller.highlightedElements);
         } else if (reason === UpdateReasons.SELECT_REGION) {
             if (this.mode === Mode.SELECT_REGION) {
                 this.regionSelector.select(true);
@@ -1709,6 +1720,17 @@ export class CanvasViewImpl implements CanvasView, Listener {
         return this.canvas;
     }
 
+    public setupConflictsRegions(state: any): number[] {
+        let cx = 0;
+        let cy = 0;
+        const shape = this.svgShapes[state.clientID];
+        if (!shape) return [];
+        const box = (shape.node as any).getBBox();
+        cx = box.x + (box.width) / 2;
+        cy = box.y;
+        return [cx, cy];
+    }
+
     private redrawBitmap(): void {
         const width = +this.background.style.width.slice(0, -2);
         const height = +this.background.style.height.slice(0, -2);
@@ -1774,7 +1796,7 @@ export class CanvasViewImpl implements CanvasView, Listener {
                 if (state.shapeType === 'mask') {
                     const { points } = state;
                     const [left, top, right, bottom] = points.slice(-4);
-                    const imageBitmap = expandChannels(255, 255, 255, points, 4);
+                    const imageBitmap = expandChannels(255, 255, 255, points);
                     imageDataToDataURL(imageBitmap, right - left + 1, bottom - top + 1,
                         (dataURL: string) => new Promise((resolve) => {
                             const img = document.createElement('img');
@@ -1855,6 +1877,17 @@ export class CanvasViewImpl implements CanvasView, Listener {
         } else if (colorBy === ColorBy.LABEL) {
             shapeColor = state.label.color;
         }
+        if (this.highlightedElements.elementsIDs.length) {
+            if (this.highlightedElements.elementsIDs.includes(state.clientID)) {
+                if (this.highlightedElements.severity === HighlightSeverity.ERROR) {
+                    shapeColor = consts.CONFLICT_COLOR;
+                } else if (this.highlightedElements.severity === HighlightSeverity.WARNING) {
+                    shapeColor = consts.WARNING_COLOR;
+                }
+            } else {
+                shapeColor = consts.SHADED_COLOR;
+            }
+        }
         const outlinedColor = parentShapeType === 'skeleton' ? 'black' : outlinedBorders || shapeColor;
 
         return {
@@ -1862,6 +1895,17 @@ export class CanvasViewImpl implements CanvasView, Listener {
             stroke: outlinedColor,
             'fill-opacity': !['polyline', 'points', 'skeleton'].includes(shapeType) || parentShapeType === 'skeleton' ? shapeOpacity : 0,
         };
+    }
+
+    private getHighlightClassname(): string {
+        const { severity } = this.highlightedElements;
+        if (severity === HighlightSeverity.ERROR) {
+            return 'cvat_canvas_conflicted';
+        }
+        if (severity === HighlightSeverity.WARNING) {
+            return 'cvat_canvas_warned';
+        }
+        return '';
     }
 
     private updateObjects(states: any[]): void {
@@ -2139,7 +2183,7 @@ export class CanvasViewImpl implements CanvasView, Listener {
     }
 
     private deactivateShape(): void {
-        if (this.activeElement.clientID !== null) {
+        if (this.activeElement.clientID) {
             const { displayAllText } = this.configuration;
             const { clientID } = this.activeElement;
             const drawnState = this.drawnStates[clientID];
@@ -2219,7 +2263,6 @@ export class CanvasViewImpl implements CanvasView, Listener {
 
     private activateShape(clientID: number): void {
         const [state] = this.controller.objects.filter((_state: any): boolean => _state.clientID === clientID);
-
         if (state && state.shapeType === 'points') {
             this.svgShapes[clientID]
                 .remember('_selectHandler')
@@ -2231,6 +2274,7 @@ export class CanvasViewImpl implements CanvasView, Listener {
         }
 
         const shape = this.svgShapes[clientID];
+
         let text = this.svgTexts[clientID];
         if (!text) {
             text = this.addText(state);
@@ -2486,6 +2530,35 @@ export class CanvasViewImpl implements CanvasView, Listener {
         }
     }
 
+    private highlight(highlightedElements: HighlightedElements): void {
+        this.highlightedElements.elementsIDs.forEach((clientID) => {
+            const shapeView = window.document.getElementById(`cvat_canvas_shape_${clientID}`);
+            if (shapeView) shapeView.classList.remove(this.getHighlightClassname());
+        });
+        if (highlightedElements.elementsIDs.length) {
+            this.highlightedElements = { ...highlightedElements };
+            this.canvas.classList.add('cvat-canvas-highlight-enabled');
+            this.highlightedElements.elementsIDs.forEach((clientID) => {
+                const shapeView = window.document.getElementById(`cvat_canvas_shape_${clientID}`);
+                if (shapeView) shapeView.classList.add(this.getHighlightClassname());
+            });
+        } else {
+            this.highlightedElements = {
+                elementsIDs: [],
+                severity: null,
+            };
+            this.canvas.classList.remove('cvat-canvas-highlight-enabled');
+        }
+        const masks = Object.values(this.drawnStates).filter((state) => state.shapeType === 'mask');
+        this.deleteObjects(masks);
+        this.addObjects(masks);
+        if (this.highlightedElements.elementsIDs.length) {
+            this.deactivate();
+            const clientID = this.highlightedElements.elementsIDs[0];
+            this.activate({ clientID, attributeID: null });
+        }
+    }
+
     // Update text position after corresponding box has been moved, resized, etc.
     private updateTextPosition(
         text: SVG.Text,
@@ -2497,7 +2570,12 @@ export class CanvasViewImpl implements CanvasView, Listener {
         if (!shape) return;
 
         if (text.node.style.display === 'none') return; // wrong transformation matrix
-        const { textFontSize, textPosition } = this.configuration;
+        const { textFontSize } = this.configuration;
+        let { textPosition } = this.configuration;
+        if (shape.type === 'circle') {
+            // force auto for skeleton elements
+            textPosition = 'auto';
+        }
 
         text.untransform();
         text.style({ 'font-size': `${textFontSize}px` });
@@ -2508,10 +2586,12 @@ export class CanvasViewImpl implements CanvasView, Listener {
         if (textPosition === 'center') {
             let cx = 0;
             let cy = 0;
-            if (shape.type === 'rect') {
-                // for rectangle finding a center is simple
+            if (['rect', 'image'].includes(shape.type)) {
+                // for rectangle/mask finding a center is simple
                 cx = +shape.attr('x') + +shape.attr('width') / 2;
                 cy = +shape.attr('y') + +shape.attr('height') / 2;
+            } else if (shape.type === 'g') {
+                ({ cx, cy } = shape.bbox());
             } else if (shape.type === 'ellipse') {
                 // even simpler for ellipses
                 cx = +shape.attr('cx');
@@ -2594,9 +2674,20 @@ export class CanvasViewImpl implements CanvasView, Listener {
             });
         }
 
-        for (const tspan of (text.lines() as any).members) {
-            tspan.attr('x', text.attr('x'));
+        function applyParentX(parentText: SVGTSpanElement | SVGTextElement): void {
+            for (let i = 0; i < parentText.children.length; i++) {
+                if (i === 0) {
+                    // do not align the first child
+                    continue;
+                }
+
+                const tspan = parentText.children[i];
+                tspan.setAttribute('x', parentText.getAttribute('x'));
+                applyParentX(tspan as SVGTSpanElement);
+            }
         }
+
+        applyParentX(text.node as any as SVGTextElement);
     }
 
     private deleteText(clientID: number): void {
@@ -2660,15 +2751,16 @@ export class CanvasViewImpl implements CanvasView, Listener {
                 }
                 if (withAttr) {
                     for (const attrID of Object.keys(attributes)) {
-                        const value = attributes[attrID] === undefinedAttrValue ? '' : attributes[attrID];
-                        block
-                            .tspan(`${attrNames[attrID]}: ${value}`)
-                            .attr({
-                                attrID,
-                                dy: '1em',
-                                x: 0,
-                            })
-                            .addClass('cvat_canvas_text_attribute');
+                        const values = `${attributes[attrID] === undefinedAttrValue ? '' : attributes[attrID]}`.split('\n');
+                        const parent = block.tspan(`${attrNames[attrID]}: `)
+                            .attr({ attrID, dy: '1em', x: 0 }).addClass('cvat_canvas_text_attribute');
+                        values.forEach((attrLine: string, index: number) => {
+                            parent
+                                .tspan(attrLine)
+                                .attr({
+                                    dy: index === 0 ? 0 : '1em',
+                                });
+                        });
                     }
                 }
             })
@@ -2705,6 +2797,10 @@ export class CanvasViewImpl implements CanvasView, Listener {
             rect.addClass('cvat_canvas_hidden');
         }
 
+        if (state.isGroundTruth) {
+            rect.addClass('cvat_canvas_ground_truth');
+        }
+
         return rect;
     }
 
@@ -2729,6 +2825,10 @@ export class CanvasViewImpl implements CanvasView, Listener {
             polygon.addClass('cvat_canvas_hidden');
         }
 
+        if (state.isGroundTruth) {
+            polygon.addClass('cvat_canvas_ground_truth');
+        }
+
         return polygon;
     }
 
@@ -2751,6 +2851,10 @@ export class CanvasViewImpl implements CanvasView, Listener {
 
         if (state.hidden || state.outside || this.isInnerHidden(state.clientID)) {
             polyline.addClass('cvat_canvas_hidden');
+        }
+
+        if (state.isGroundTruth) {
+            polyline.addClass('cvat_canvas_ground_truth');
         }
 
         return polyline;
@@ -2778,6 +2882,10 @@ export class CanvasViewImpl implements CanvasView, Listener {
             cube.addClass('cvat_canvas_hidden');
         }
 
+        if (state.isGroundTruth) {
+            cube.addClass('cvat_canvas_ground_truth');
+        }
+
         return cube;
     }
 
@@ -2785,7 +2893,7 @@ export class CanvasViewImpl implements CanvasView, Listener {
         const colorization = this.getShapeColorization(state);
         const color = fabric.Color.fromHex(colorization.fill).getSource();
         const [left, top, right, bottom] = points.slice(-4);
-        const imageBitmap = expandChannels(color[0], color[1], color[2], points, 4);
+        const imageBitmap = expandChannels(color[0], color[1], color[2], points);
 
         const image = this.adoptedContent.image().attr({
             clientID: state.clientID,
@@ -2972,6 +3080,10 @@ export class CanvasViewImpl implements CanvasView, Listener {
 
         if (state.occluded) {
             skeleton.addClass('cvat_canvas_shape_occluded');
+        }
+
+        if (state.isGroundTruth) {
+            skeleton.addClass('cvat_canvas_ground_truth');
         }
 
         if (state.hidden || state.outside || this.isInnerHidden(state.clientID)) {
@@ -3352,6 +3464,10 @@ export class CanvasViewImpl implements CanvasView, Listener {
             rect.addClass('cvat_canvas_hidden');
         }
 
+        if (state.isGroundTruth) {
+            rect.addClass('cvat_canvas_ground_truth');
+        }
+
         return rect;
     }
 
@@ -3376,6 +3492,10 @@ export class CanvasViewImpl implements CanvasView, Listener {
 
         if (state.occluded) {
             group.addClass('cvat_canvas_shape_occluded');
+        }
+
+        if (state.isGroundTruth) {
+            group.addClass('cvat_canvas_ground_truth');
         }
 
         shape.remove = (): SVG.PolyLine => {

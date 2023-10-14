@@ -5,10 +5,10 @@
 
 import { AnyAction } from 'redux';
 
+import { ServerError } from 'cvat-core-wrapper';
 import { AuthActionTypes } from 'actions/auth-actions';
 import { FormatsActionTypes } from 'actions/formats-actions';
 import { ModelsActionTypes } from 'actions/models-actions';
-import { ShareActionTypes } from 'actions/share-actions';
 import { TasksActionTypes } from 'actions/tasks-actions';
 import { ProjectsActionTypes } from 'actions/projects-actions';
 import { AboutActionTypes } from 'actions/about-actions';
@@ -24,6 +24,7 @@ import { OrganizationActionsTypes } from 'actions/organization-actions';
 import { JobsActionTypes } from 'actions/jobs-actions';
 import { WebhooksActionsTypes } from 'actions/webhooks-actions';
 
+import { AnalyticsActionsTypes } from 'actions/analytics-actions';
 import { NotificationsState } from '.';
 
 const defaultState: NotificationsState = {
@@ -61,6 +62,8 @@ const defaultState: NotificationsState = {
         jobs: {
             updating: null,
             fetching: null,
+            creating: null,
+            deleting: null,
         },
         formats: {
             fetching: null,
@@ -69,9 +72,6 @@ const defaultState: NotificationsState = {
             fetching: null,
         },
         about: {
-            fetching: null,
-        },
-        share: {
             fetching: null,
         },
         models: {
@@ -155,6 +155,11 @@ const defaultState: NotificationsState = {
             updating: null,
             deleting: null,
         },
+        analytics: {
+            fetching: null,
+            fetchingSettings: null,
+            updatingSettings: null,
+        },
     },
     messages: {
         tasks: {
@@ -198,7 +203,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.auth,
                         authorized: {
                             message: 'Could not check authorization on the server',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                         },
                     },
                 },
@@ -213,7 +219,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.auth,
                         login: {
                             message: 'Could not login on the server',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                             className: 'cvat-notification-notice-login-failed',
                         },
                     },
@@ -229,7 +236,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.auth,
                         logout: {
                             message: 'Could not logout from the server',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                         },
                     },
                 },
@@ -244,7 +252,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.auth,
                         register: {
                             message: 'Could not register on the server',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                         },
                     },
                 },
@@ -290,7 +299,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.auth,
                         changePassword: {
                             message: 'Could not change password',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                             className: 'cvat-notification-notice-change-password-failed',
                         },
                     },
@@ -319,7 +329,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.auth,
                         requestPasswordReset: {
                             message: 'Could not reset password on the server.',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                         },
                     },
                 },
@@ -346,7 +357,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.auth,
                         resetPassword: {
                             message: 'Could not set new password on the server.',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                         },
                     },
                 },
@@ -361,7 +373,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.auth,
                         loadAuthActions: {
                             message: 'Could not check available auth actions',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                         },
                     },
                 },
@@ -379,7 +392,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                             message:
                                 'Could not export dataset for the ' +
                                 `[${instanceType} ${instance.id}](/${instanceType}s/${instance.id})`,
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                         },
                     },
                 },
@@ -415,7 +429,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         backup: {
                             message:
                                 `Could not export the ${instanceType} №${instance.id}`,
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                         },
                     },
                 },
@@ -468,7 +483,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.importing,
                         dataset: {
                             message,
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                             className: 'cvat-notification-notice-' +
                                 `${resource === 'annotation' ? 'load-annotation' : 'import-dataset'}-failed`,
                         },
@@ -502,7 +518,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         backup: {
                             message:
                                 `Could not restore ${instanceType} backup.`,
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                         },
                     },
                 },
@@ -517,7 +534,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.tasks,
                         fetching: {
                             message: 'Could not fetch tasks',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                         },
                     },
                 },
@@ -533,7 +551,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.tasks,
                         deleting: {
                             message: `Could not delete the [task ${taskID}](/tasks/${taskID})`,
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                             className: 'cvat-notification-notice-delete-task-failed',
                         },
                     },
@@ -549,7 +568,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.tasks,
                         creating: {
                             message: 'Could not create the task',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                             className: 'cvat-notification-notice-create-task-failed',
                         },
                     },
@@ -565,7 +585,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.projects,
                         fetching: {
                             message: 'Could not fetch projects',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                         },
                     },
                 },
@@ -580,7 +601,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.projects,
                         creating: {
                             message: 'Could not create the project',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                             className: 'cvat-notification-notice-create-project-failed',
                         },
                     },
@@ -597,7 +619,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.projects,
                         updating: {
                             message: `Could not delete [project ${projectId}](/project/${projectId})`,
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                             className: 'cvat-notification-notice-delete-project-failed',
                         },
                     },
@@ -613,7 +636,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.formats,
                         fetching: {
                             message: 'Could not get formats from the server',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                         },
                     },
                 },
@@ -628,22 +652,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.about,
                         fetching: {
                             message: 'Could not get info about the server',
-                            reason: action.payload.error.toString(),
-                        },
-                    },
-                },
-            };
-        }
-        case ShareActionTypes.LOAD_SHARE_DATA_FAILED: {
-            return {
-                ...state,
-                errors: {
-                    ...state.errors,
-                    share: {
-                        ...state.errors.share,
-                        fetching: {
-                            message: 'Could not load share data from the server',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                         },
                     },
                 },
@@ -682,7 +692,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.models,
                         metaFetching: {
                             message: 'Could not fetch models meta information',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                         },
                     },
                 },
@@ -698,7 +709,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.models,
                         inferenceStatusFetching: {
                             message: `Fetching inference status for the [task ${taskID}](/tasks/${taskID})`,
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                         },
                     },
                 },
@@ -713,7 +725,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.models,
                         fetching: {
                             message: 'Could not get models from the server',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                         },
                     },
                 },
@@ -729,7 +742,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.models,
                         starting: {
                             message: `Could not infer model for the [task ${taskID}](/tasks/${taskID})`,
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                         },
                     },
                 },
@@ -745,7 +759,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.models,
                         canceling: {
                             message: `Could not cancel model inference for the [task ${taskID}](/tasks/${taskID})`,
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                         },
                     },
                 },
@@ -760,7 +775,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.models,
                         creating: {
                             message: 'Could not create model',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                         },
                     },
                 },
@@ -776,7 +792,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.models,
                         deleting: {
                             message: `Could not delete model ${modelName}`,
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                         },
                     },
                 },
@@ -791,7 +808,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.annotation,
                         jobFetching: {
                             message: 'Error during fetching a job',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                             className: 'cvat-notification-notice-fetch-job-failed',
                         },
                     },
@@ -807,7 +825,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.annotation,
                         frameFetching: {
                             message: `Could not receive frame ${action.payload.number}`,
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                         },
                     },
                 },
@@ -822,7 +841,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.annotation,
                         saving: {
                             message: 'Could not save annotations',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                             className: 'cvat-notification-notice-save-annotations-failed',
                         },
                     },
@@ -838,7 +858,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.annotation,
                         updating: {
                             message: 'Could not update annotations',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                             className: 'cvat-notification-notice-update-annotations-failed',
                         },
                     },
@@ -854,7 +875,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.annotation,
                         creating: {
                             message: 'Could not create annotations',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                         },
                     },
                 },
@@ -869,7 +891,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.annotation,
                         merging: {
                             message: 'Could not merge annotations',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                         },
                     },
                 },
@@ -884,7 +907,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.annotation,
                         grouping: {
                             message: 'Could not group annotations',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                         },
                     },
                 },
@@ -899,7 +923,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.annotation,
                         splitting: {
                             message: 'Could not split the track',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                         },
                     },
                 },
@@ -914,7 +939,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.annotation,
                         removing: {
                             message: 'Could not remove the object',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                             className: 'cvat-notification-notice-remove-object-failed',
                         },
                     },
@@ -930,7 +956,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.annotation,
                         propagating: {
                             message: 'Could not propagate the object',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                         },
                     },
                 },
@@ -945,7 +972,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.annotation,
                         collectingStatistics: {
                             message: 'Could not collect annotations statistics',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                         },
                     },
                 },
@@ -984,7 +1012,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.annotation,
                         removeAnnotations: {
                             message: 'Could not remove annotations',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                         },
                     },
                 },
@@ -999,7 +1028,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.annotation,
                         fetchingAnnotations: {
                             message: 'Could not fetch annotations',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                         },
                     },
                 },
@@ -1014,7 +1044,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.annotation,
                         redo: {
                             message: 'Could not redo',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                         },
                     },
                 },
@@ -1029,7 +1060,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.annotation,
                         undo: {
                             message: 'Could not undo',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                         },
                     },
                 },
@@ -1044,7 +1076,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.annotation,
                         search: {
                             message: 'Could not execute search annotations',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                         },
                     },
                 },
@@ -1059,7 +1092,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.annotation,
                         searchEmptyFrame: {
                             message: 'Could not search an empty frame',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                         },
                     },
                 },
@@ -1074,7 +1108,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.annotation,
                         savingLogs: {
                             message: 'Could not send logs to the server',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                         },
                     },
                 },
@@ -1089,7 +1124,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.annotation,
                         resetError: {
                             message: 'Could not reset the state',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                         },
                     },
                 },
@@ -1104,7 +1140,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.userAgreements,
                         fetching: {
                             message: 'Could not get user agreements from the server',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                         },
                     },
                 },
@@ -1119,7 +1156,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.review,
                         finishingIssue: {
                             message: 'Could not open a new issue',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                         },
                     },
                 },
@@ -1134,7 +1172,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.review,
                         resolvingIssue: {
                             message: 'Could not resolve the issue',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                         },
                     },
                 },
@@ -1149,7 +1188,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.review,
                         reopeningIssue: {
                             message: 'Could not reopen the issue',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                         },
                     },
                 },
@@ -1164,7 +1204,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.review,
                         commentingIssue: {
                             message: 'Could not comment the issue',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                         },
                     },
                 },
@@ -1179,7 +1220,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.review,
                         submittingReview: {
                             message: `Could not submit review for the job ${action.payload.jobId}`,
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                         },
                     },
                 },
@@ -1194,7 +1236,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.review,
                         deletingIssue: {
                             message: 'Could not remove issue from the server',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                         },
                     },
                 },
@@ -1224,8 +1267,9 @@ export default function (state = defaultState, action: AnyAction): Notifications
                     annotation: {
                         ...state.errors.annotation,
                         jobFetching: {
-                            message: 'Could not fetch frame data from the server',
+                            message: 'Could not receive image data',
                             reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                             className: 'cvat-notification-notice-fetch-frame-data-from-the-server-failed',
                         },
                     },
@@ -1242,6 +1286,7 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         deleteFrame: {
                             message: 'Could not delete frame',
                             reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                         },
                     },
                 },
@@ -1257,6 +1302,7 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         restoreFrame: {
                             message: 'Could not restore frame',
                             reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                         },
                     },
                 },
@@ -1271,7 +1317,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.cloudStorages,
                         fetching: {
                             message: 'Could not fetch cloud storage',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                         },
                     },
                 },
@@ -1286,7 +1333,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.cloudStorages,
                         creating: {
                             message: 'Could not create the cloud storage',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                             className: 'cvat-notification-notice-create-cloud-storage-failed',
                         },
                     },
@@ -1321,7 +1369,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         deleting: {
                             message:
                                 `Could not delete cloud storage ${cloudStorageID}`,
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                             className: 'cvat-notification-notice-delete-cloud-storage-failed',
                         },
                     },
@@ -1338,7 +1387,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.cloudStorages,
                         fetching: {
                             message: `Could not fetch content for cloud storage #${cloudStorageID}`,
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                             className: 'cvat-notification-notice-fetch-cloud-storage-content-failed',
                         },
                     },
@@ -1355,7 +1405,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.cloudStorages,
                         fetching: {
                             message: `Could not fetch cloud storage #${cloudStorageID} status`,
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                             className: 'cvat-notification-notice-fetch-cloud-storage-status-failed',
                         },
                     },
@@ -1373,7 +1424,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.cloudStorages,
                         fetching: {
                             message: `Could not fetch preview for cloud storage #${cloudStorageID}`,
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                             className: 'cvat-notification-notice-fetch-cloud-storage-preview-failed',
                         },
                     },
@@ -1389,7 +1441,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.organizations,
                         fetching: {
                             message: 'Could not fetch organizations list',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                             className: 'cvat-notification-notice-fetch-organizations-failed',
                         },
                     },
@@ -1405,7 +1458,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.organizations,
                         creating: {
                             message: `Could not create organization ${action.payload.slug}`,
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                             className: 'cvat-notification-notice-create-organization-failed',
                         },
                     },
@@ -1422,7 +1476,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.organizations,
                         updating: {
                             message: `Could not update organization "${slug}"`,
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                             className: 'cvat-notification-notice-update-organization-failed',
                         },
                     },
@@ -1438,7 +1493,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.organizations,
                         activation: {
                             message: `Could not activate organization ${action.payload.slug || ''}`,
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                             className: 'cvat-notification-notice-activate-organization-failed',
                         },
                     },
@@ -1454,7 +1510,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.organizations,
                         deleting: {
                             message: `Could not remove organization ${action.payload.slug}`,
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                             className: 'cvat-notification-notice-remove-organization-failed',
                         },
                     },
@@ -1470,7 +1527,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.organizations,
                         inviting: {
                             message: 'Could not invite organization members',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                             className: 'cvat-notification-notice-invite-organization-members-failed',
                         },
                     },
@@ -1486,7 +1544,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.organizations,
                         inviting: {
                             message: `Could not invite this member "${action.payload.email}" to the organization`,
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                             className: 'cvat-notification-notice-invite-organization-member-failed',
                         },
                     },
@@ -1502,7 +1561,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.organizations,
                         leaving: {
                             message: 'Could not leave the organization',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                             className: 'cvat-notification-notice-leave-organization-failed',
                         },
                     },
@@ -1518,7 +1578,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.organizations,
                         removingMembership: {
                             message: `Could not remove member "${action.payload.username}" from the organization`,
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                             className: 'cvat-notification-notice-remove-organization-member-failed',
                         },
                     },
@@ -1535,7 +1596,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.organizations,
                         updatingMembership: {
                             message: `Could not assign role "${role}" to the user "${username}"`,
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                             className: 'cvat-notification-notice-update-organization-membership-failed',
                         },
                     },
@@ -1551,8 +1613,60 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.jobs,
                         fetching: {
                             message: 'Could not fetch a list of jobs',
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
+                            className: 'cvat-notification-notice-get-jobs-failed',
+                        },
+                    },
+                },
+            };
+        }
+        case JobsActionTypes.CREATE_JOB_FAILED: {
+            return {
+                ...state,
+                errors: {
+                    ...state.errors,
+                    jobs: {
+                        ...state.errors.jobs,
+                        creating: {
+                            message: 'Could not create job',
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
+                            className: 'cvat-notification-notice-create-job-failed',
+                        },
+                    },
+                },
+            };
+        }
+        case JobsActionTypes.UPDATE_JOB_FAILED: {
+            return {
+                ...state,
+                errors: {
+                    ...state.errors,
+                    jobs: {
+                        ...state.errors.jobs,
+                        updating: {
+                            message: 'Could not update job',
                             reason: action.payload.error.toString(),
-                            className: 'cvat-notification-notice-update-organization-membership-failed',
+                            className: 'cvat-notification-notice-update-job-failed',
+                        },
+                    },
+                },
+            };
+        }
+        case JobsActionTypes.DELETE_JOB_FAILED: {
+            const { jobID } = action.payload;
+            return {
+                ...state,
+                errors: {
+                    ...state.errors,
+                    jobs: {
+                        ...state.errors.jobs,
+                        deleting: {
+                            message: `Could not delete the job #${jobID}`,
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
+                            className: 'cvat-notification-notice-delete-job-failed',
                         },
                     },
                 },
@@ -1567,7 +1681,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.webhooks,
                         fetching: {
                             message: 'Could not fetch a list of webhooks',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                             className: 'cvat-notification-notice-get-webhooks-failed',
                         },
                     },
@@ -1583,7 +1698,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.webhooks,
                         creating: {
                             message: 'Could not create webhook',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                             className: 'cvat-notification-notice-create-webhook-failed',
                         },
                     },
@@ -1599,7 +1715,8 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.webhooks,
                         updating: {
                             message: 'Could not update webhook',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                             className: 'cvat-notification-notice-update-webhook-failed',
                         },
                     },
@@ -1615,8 +1732,60 @@ export default function (state = defaultState, action: AnyAction): Notifications
                         ...state.errors.webhooks,
                         deleting: {
                             message: 'Could not delete webhook',
-                            reason: action.payload.error.toString(),
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
                             className: 'cvat-notification-notice-delete-webhook-failed',
+                        },
+                    },
+                },
+            };
+        }
+        case AnalyticsActionsTypes.GET_QUALITY_REPORTS_FAILED: {
+            return {
+                ...state,
+                errors: {
+                    ...state.errors,
+                    analytics: {
+                        ...state.errors.analytics,
+                        fetching: {
+                            message: 'Could not fetch quality reports',
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
+                            className: 'cvat-notification-notice-get-quality-reports-failed',
+                        },
+                    },
+                },
+            };
+        }
+        case AnalyticsActionsTypes.GET_QUALITY_SETTINGS_FAILED: {
+            return {
+                ...state,
+                errors: {
+                    ...state.errors,
+                    analytics: {
+                        ...state.errors.analytics,
+                        fetchingSettings: {
+                            message: 'Could not fetch quality settings',
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
+                            className: 'cvat-notification-notice-get-quality-settings-failed',
+                        },
+                    },
+                },
+            };
+        }
+        case AnalyticsActionsTypes.UPDATE_QUALITY_SETTINGS_FAILED: {
+            return {
+                ...state,
+                errors: {
+                    ...state.errors,
+                    analytics: {
+                        ...state.errors.analytics,
+                        updatingSettings: {
+                            message: 'Could not update quality settings',
+                            reason: action.payload.error,
+                            shouldLog: !(action.payload.error instanceof ServerError),
+                            className: 'cvat-notification-notice-update-quality-settings-failed',
                         },
                     },
                 },

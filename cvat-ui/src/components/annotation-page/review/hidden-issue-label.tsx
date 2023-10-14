@@ -8,7 +8,7 @@ import React, {
 } from 'react';
 import ReactDOM from 'react-dom';
 import Tag from 'antd/lib/tag';
-import { CheckCircleOutlined, CloseCircleOutlined, WarningOutlined } from '@ant-design/icons';
+import { CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
 
 import { Issue } from 'cvat-core-wrapper';
 import CVATTooltip from 'components/common/cvat-tooltip';
@@ -40,25 +40,36 @@ export default function HiddenIssueLabel(props: Props): ReactPortal {
         }
     }, [resolved]);
 
+    useEffect(() => {
+        if (ref.current) {
+            const { current } = ref;
+            const listener = (event: WheelEvent): void => {
+                event.stopPropagation();
+                if (event.deltaX > 0) {
+                    current.parentElement?.appendChild(current);
+                } else {
+                    current.parentElement?.prepend(current);
+                }
+            };
+
+            current.addEventListener('wheel', listener);
+            return () => {
+                current.removeEventListener('wheel', listener);
+            };
+        }
+
+        return () => {};
+    }, [ref.current]);
+
     const elementID = `cvat-hidden-issue-label-${id}`;
     return ReactDOM.createPortal(
-        <CVATTooltip title={comments[0]?.message || 'Messages not found'}>
+        <CVATTooltip title={comments[0]?.message || 'No comments found'}>
             <Tag
                 ref={ref}
                 id={elementID}
                 onClick={onClick}
                 onMouseEnter={highlight}
                 onMouseLeave={blur}
-                onWheel={(event: React.WheelEvent) => {
-                    if (ref.current !== null) {
-                        const selfElement = ref.current;
-                        if (event.deltaX > 0) {
-                            selfElement.parentElement?.appendChild(selfElement);
-                        } else {
-                            selfElement.parentElement?.prepend(selfElement);
-                        }
-                    }
-                }}
                 style={{ top, left, transform: `scale(${scale}) rotate(${angle}deg)` }}
                 className='cvat-hidden-issue-label'
             >
@@ -67,7 +78,7 @@ export default function HiddenIssueLabel(props: Props): ReactPortal {
                 ) : (
                     <CloseCircleOutlined className='cvat-hidden-issue-unsolved-indicator' />
                 )}
-                {comments[0]?.message || <WarningOutlined />}
+                {comments[0]?.message || null}
             </Tag>
         </CVATTooltip>,
         window.document.getElementById('cvat_canvas_attachment_board') as HTMLElement,

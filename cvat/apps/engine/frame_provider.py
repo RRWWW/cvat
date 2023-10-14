@@ -10,13 +10,12 @@ import os
 
 import cv2
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageOps
 
 from cvat.apps.engine.cache import MediaCache
 from cvat.apps.engine.media_extractors import VideoReader, ZipReader
 from cvat.apps.engine.mime_types import mimetypes
 from cvat.apps.engine.models import DataChoice, StorageMethodChoice, DimensionType
-from cvat.apps.engine.media_extractors import rotate_within_exif
 from rest_framework.exceptions import ValidationError
 
 class RandomAccessIterator:
@@ -101,12 +100,12 @@ class FrameProvider:
 
             self._loaders[self.Quality.COMPRESSED] = self.BuffChunkLoader(
                 reader_class[db_data.compressed_chunk_type],
-                cache.get_buf_chunk_with_mime,
+                cache.get_task_chunk_data_with_mime,
                 self.Quality.COMPRESSED,
                 self._db_data)
             self._loaders[self.Quality.ORIGINAL] = self.BuffChunkLoader(
                 reader_class[db_data.original_chunk_type],
-                cache.get_buf_chunk_with_mime,
+                cache.get_task_chunk_data_with_mime,
                 self.Quality.ORIGINAL,
                 self._db_data)
         else:
@@ -175,7 +174,7 @@ class FrameProvider:
         else:
             preview, _ = self.get_frame(frame_number, self.Quality.COMPRESSED, self.Type.PIL)
 
-        preview = rotate_within_exif(preview)
+        preview = ImageOps.exif_transpose(preview)
         preview.thumbnail(PREVIEW_SIZE)
 
         output_buf = BytesIO()

@@ -15,14 +15,14 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/2.0/ref/settings/
 """
 
-import fcntl
 import mimetypes
 import os
-import shutil
-import subprocess
 import sys
+import tempfile
+from datetime import timedelta
 from distutils.util import strtobool
 from enum import Enum
+import urllib
 
 from corsheaders.defaults import default_headers
 from logstash_async.constants import constants as logstash_async_constants
@@ -39,69 +39,47 @@ BASE_DIR = str(Path(__file__).parents[2])
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 INTERNAL_IPS = ['127.0.0.1']
 
-try:
-    sys.path.append(BASE_DIR)
-    from keys.secret_key import SECRET_KEY # pylint: disable=unused-import
-except ImportError:
+redis_host = os.getenv('CVAT_REDIS_HOST', 'localhost')
+redis_port = os.getenv('CVAT_REDIS_PORT', 6379)
+redis_password = os.getenv('CVAT_REDIS_PASSWORD', '')
+
+def generate_secret_key():
+    """
+    Creates secret_key.py in such a way that multiple processes calling
+    this will all end up with the same key (assuming that they share the
+    same "keys" directory).
+    """
 
     from django.utils.crypto import get_random_string
     keys_dir = os.path.join(BASE_DIR, 'keys')
     if not os.path.isdir(keys_dir):
         os.mkdir(keys_dir)
-    with open(os.path.join(keys_dir, 'secret_key.py'), 'w') as f:
+
+    secret_key_fname = 'secret_key.py' # nosec
+
+    with tempfile.NamedTemporaryFile(
+        mode='wt', dir=keys_dir, prefix=secret_key_fname + ".",
+    ) as f:
         chars = 'abcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*(-_=+)'
         f.write("SECRET_KEY = '{}'\n".format(get_random_string(50, chars)))
-    from keys.secret_key import SECRET_KEY
 
+        # Make sure the file contents are written before we link to it
+        # from the final location.
+        f.flush()
 
-def generate_ssh_keys():
-    keys_dir = '{}/keys'.format(os.getcwd())
-    ssh_dir = '{}/.ssh'.format(os.getenv('HOME'))
-    pidfile = os.path.join(keys_dir, 'ssh.pid')
-
-    def add_ssh_keys():
-        IGNORE_FILES = ('README.md',)
-        keys_to_add = [entry.name for entry in os.scandir(ssh_dir) if entry.name not in IGNORE_FILES]
-        keys_to_add = ' '.join(os.path.join(ssh_dir, f) for f in keys_to_add)
-        subprocess.run(['ssh-add {}'.format(keys_to_add)], # nosec
-            shell=True,
-            stderr = subprocess.PIPE,
-            # lets set the timeout if ssh-add requires a input passphrase for key
-            # otherwise the process will be freezed
-            timeout=30,
-            )
-
-    with open(pidfile, "w") as pid:
-        fcntl.flock(pid, fcntl.LOCK_EX)
         try:
-            add_ssh_keys()
-            keys = subprocess.run(['ssh-add', '-l'], # nosec
-                stdout = subprocess.PIPE).stdout.decode('utf-8').split('\n')
-            if 'has no identities' in keys[0]:
-                print('SSH keys were not found')
-                volume_keys = os.listdir(keys_dir)
-                if not ('id_rsa' in volume_keys and 'id_rsa.pub' in volume_keys):
-                    print('New pair of keys are being generated')
-                    subprocess.run(['ssh-keygen -b 4096 -t rsa -f {}/id_rsa -q -N ""'.format(ssh_dir)], shell=True) # nosec
-                    shutil.copyfile('{}/id_rsa'.format(ssh_dir), '{}/id_rsa'.format(keys_dir))
-                    shutil.copymode('{}/id_rsa'.format(ssh_dir), '{}/id_rsa'.format(keys_dir))
-                    shutil.copyfile('{}/id_rsa.pub'.format(ssh_dir), '{}/id_rsa.pub'.format(keys_dir))
-                    shutil.copymode('{}/id_rsa.pub'.format(ssh_dir), '{}/id_rsa.pub'.format(keys_dir))
-                else:
-                    print('Copying them from keys volume')
-                    shutil.copyfile('{}/id_rsa'.format(keys_dir), '{}/id_rsa'.format(ssh_dir))
-                    shutil.copymode('{}/id_rsa'.format(keys_dir), '{}/id_rsa'.format(ssh_dir))
-                    shutil.copyfile('{}/id_rsa.pub'.format(keys_dir), '{}/id_rsa.pub'.format(ssh_dir))
-                    shutil.copymode('{}/id_rsa.pub'.format(keys_dir), '{}/id_rsa.pub'.format(ssh_dir))
-                subprocess.run(['ssh-add', '{}/id_rsa'.format(ssh_dir)]) # nosec
-        finally:
-            fcntl.flock(pid, fcntl.LOCK_UN)
+            os.link(f.name, os.path.join(keys_dir, secret_key_fname))
+        except FileExistsError:
+            # Somebody else created the secret key first.
+            # Discard ours and use theirs.
+            pass
 
 try:
-    if os.getenv("SSH_AUTH_SOCK", None):
-        generate_ssh_keys()
-except Exception as ex:
-    print(str(ex))
+    sys.path.append(BASE_DIR)
+    from keys.secret_key import SECRET_KEY # pylint: disable=unused-import
+except ModuleNotFoundError:
+    generate_secret_key()
+    from keys.secret_key import SECRET_KEY
 
 DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'
 INSTALLED_APPS = [
@@ -136,10 +114,11 @@ INSTALLED_APPS = [
     'cvat.apps.engine',
     'cvat.apps.dataset_repo',
     'cvat.apps.lambda_manager',
-    'cvat.apps.opencv',
     'cvat.apps.webhooks',
     'cvat.apps.health',
     'cvat.apps.events',
+    'cvat.apps.quality_control',
+    'cvat.apps.analytics_report',
 ]
 
 SITE_ID = 1
@@ -147,9 +126,6 @@ SITE_ID = 1
 REST_FRAMEWORK = {
     'DEFAULT_PARSER_CLASSES': [
         'rest_framework.parsers.JSONParser',
-        'rest_framework.parsers.FormParser',
-        'rest_framework.parsers.MultiPartParser',
-        'cvat.apps.engine.parsers.TusUploadParser',
     ],
     'DEFAULT_RENDERER_CLASSES': [
         'cvat.apps.engine.renderers.CVATAPIRenderer',
@@ -157,7 +133,6 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
-        'cvat.apps.iam.permissions.IsMemberInOrganization',
         'cvat.apps.iam.permissions.PolicyEnforcer',
     ],
     'DEFAULT_AUTHENTICATION_CLASSES': [
@@ -218,6 +193,7 @@ MIDDLEWARE = [
     # FIXME
     # 'corsheaders.middleware.CorsPostCsrfMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.middleware.gzip.GZipMiddleware',
     'cvat.apps.engine.middleware.RequestTrackingMiddleware',
     'crum.CurrentRequestUserMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
@@ -253,12 +229,17 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'cvat.wsgi.application'
-
 # IAM settings
 IAM_TYPE = 'BASIC'
 IAM_BASE_EXCEPTION = None # a class which will be used by IAM to report errors
-IAM_DEFAULT_ROLES = ['user']
+
+# FIXME: There are several ways to "replace" default IAM role.
+# One of them is to assign groups when you create a user inside Crowdsourcing plugin and don't add more groups
+# if user.groups field isn't empty.
+# the function should be in uppercase to able get access from django.conf.settings
+def GET_IAM_DEFAULT_ROLES(user) -> list:
+    return ['user']
+
 IAM_ADMIN_ROLE = 'admin'
 # Index in the list below corresponds to the priority (0 has highest priority)
 IAM_ROLES = [IAM_ADMIN_ROLE, 'business', 'user', 'worker']
@@ -266,6 +247,10 @@ IAM_OPA_HOST = 'http://opa:8181'
 IAM_OPA_DATA_URL = f'{IAM_OPA_HOST}/v1/data'
 LOGIN_URL = 'rest_login'
 LOGIN_REDIRECT_URL = '/'
+
+OBJECTS_NOT_RELATED_WITH_ORG = ['user', 'function', 'request', 'server',]
+# FIXME: It looks like an internal function of IAM app.
+IAM_CONTEXT_BUILDERS = ['cvat.apps.iam.utils.build_iam_context',]
 
 # ORG settings
 ORG_INVITATION_CONFIRM = 'No'
@@ -296,32 +281,68 @@ class CVAT_QUEUES(Enum):
     EXPORT_DATA = 'export'
     AUTO_ANNOTATION = 'annotation'
     WEBHOOKS = 'webhooks'
+    NOTIFICATIONS = 'notifications'
+    QUALITY_REPORTS = 'quality_reports'
+    ANALYTICS_REPORTS = 'analytics_reports'
+    CLEANING = 'cleaning'
 
 RQ_QUEUES = {
     CVAT_QUEUES.IMPORT_DATA.value: {
-        'HOST': 'localhost',
-        'PORT': 6379,
+        'HOST': redis_host,
+        'PORT': redis_port,
         'DB': 0,
-        'DEFAULT_TIMEOUT': '4h'
+        'DEFAULT_TIMEOUT': '4h',
+        'PASSWORD': urllib.parse.quote(redis_password),
     },
     CVAT_QUEUES.EXPORT_DATA.value: {
-        'HOST': 'localhost',
-        'PORT': 6379,
+        'HOST': redis_host,
+        'PORT': redis_port,
         'DB': 0,
-        'DEFAULT_TIMEOUT': '4h'
+        'DEFAULT_TIMEOUT': '4h',
+        'PASSWORD': urllib.parse.quote(redis_password),
     },
     CVAT_QUEUES.AUTO_ANNOTATION.value: {
-        'HOST': 'localhost',
-        'PORT': 6379,
+        'HOST': redis_host,
+        'PORT': redis_port,
         'DB': 0,
-        'DEFAULT_TIMEOUT': '24h'
+        'DEFAULT_TIMEOUT': '24h',
+        'PASSWORD': urllib.parse.quote(redis_password),
     },
     CVAT_QUEUES.WEBHOOKS.value: {
-        'HOST': 'localhost',
-        'PORT': 6379,
+        'HOST': redis_host,
+        'PORT': redis_port,
         'DB': 0,
-        'DEFAULT_TIMEOUT': '1h'
-    }
+        'DEFAULT_TIMEOUT': '1h',
+        'PASSWORD': urllib.parse.quote(redis_password),
+    },
+    CVAT_QUEUES.NOTIFICATIONS.value: {
+        'HOST': redis_host,
+        'PORT': redis_port,
+        'DB': 0,
+        'DEFAULT_TIMEOUT': '1h',
+        'PASSWORD': urllib.parse.quote(redis_password),
+    },
+    CVAT_QUEUES.QUALITY_REPORTS.value: {
+        'HOST': redis_host,
+        'PORT': redis_port,
+        'DB': 0,
+        'DEFAULT_TIMEOUT': '1h',
+        'PASSWORD': urllib.parse.quote(redis_password),
+    },
+    CVAT_QUEUES.ANALYTICS_REPORTS.value: {
+        'HOST': redis_host,
+        'PORT': redis_port,
+        'DB': 0,
+        'DEFAULT_TIMEOUT': '1h',
+        'PASSWORD': urllib.parse.quote(redis_password),
+    },
+    CVAT_QUEUES.CLEANING.value: {
+        'HOST': redis_host,
+        'PORT': redis_port,
+        'DB': 0,
+        'DEFAULT_TIMEOUT': '1h',
+        'PASSWORD': urllib.parse.quote(redis_password),
+    },
 }
 
 NUCLIO = {
@@ -329,15 +350,18 @@ NUCLIO = {
     'HOST': os.getenv('CVAT_NUCLIO_HOST', 'localhost'),
     'PORT': int(os.getenv('CVAT_NUCLIO_PORT', 8070)),
     'DEFAULT_TIMEOUT': int(os.getenv('CVAT_NUCLIO_DEFAULT_TIMEOUT', 120)),
-    'FUNCTION_NAMESPACE': os.getenv('CVAT_NUCLIO_FUNCTION_NAMESPACE', 'nuclio')
+    'FUNCTION_NAMESPACE': os.getenv('CVAT_NUCLIO_FUNCTION_NAMESPACE', 'nuclio'),
+    'INVOKE_METHOD': os.getenv('CVAT_NUCLIO_INVOKE_METHOD',
+        default='dashboard' if 'KUBERNETES_SERVICE_HOST' in os.environ else 'direct'),
 }
+
+assert NUCLIO['INVOKE_METHOD'] in {'dashboard', 'direct'}
 
 RQ_SHOW_ADMIN_LINK = True
 RQ_EXCEPTION_HANDLERS = [
     'cvat.apps.engine.views.rq_exception_handler',
     'cvat.apps.events.handlers.handle_rq_exception',
 ]
-
 
 # JavaScript and CSS compression
 # https://django-compressor.readthedocs.io
@@ -388,18 +412,23 @@ STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 os.makedirs(STATIC_ROOT, exist_ok=True)
 
-# Make sure to update other config files when upading these directories
+# Make sure to update other config files when updating these directories
 DATA_ROOT = os.path.join(BASE_DIR, 'data')
-EVENTS_LOCAL_DB = os.path.join(DATA_ROOT,'events.db')
-os.makedirs(DATA_ROOT, exist_ok=True)
-if not os.path.exists(EVENTS_LOCAL_DB):
-    open(EVENTS_LOCAL_DB, 'w').close()
 
 MEDIA_DATA_ROOT = os.path.join(DATA_ROOT, 'data')
 os.makedirs(MEDIA_DATA_ROOT, exist_ok=True)
 
 CACHE_ROOT = os.path.join(DATA_ROOT, 'cache')
 os.makedirs(CACHE_ROOT, exist_ok=True)
+
+EVENTS_LOCAL_DB_ROOT = os.path.join(CACHE_ROOT, 'events')
+os.makedirs(EVENTS_LOCAL_DB_ROOT, exist_ok=True)
+EVENTS_LOCAL_DB_FILE = os.path.join(
+    EVENTS_LOCAL_DB_ROOT,
+    os.getenv('CVAT_EVENTS_LOCAL_DB_FILENAME', 'events.db'),
+)
+if not os.path.exists(EVENTS_LOCAL_DB_FILE):
+    open(EVENTS_LOCAL_DB_FILE, 'w').close()
 
 JOBS_ROOT = os.path.join(DATA_ROOT, 'jobs')
 os.makedirs(JOBS_ROOT, exist_ok=True)
@@ -409,6 +438,9 @@ os.makedirs(TASKS_ROOT, exist_ok=True)
 
 PROJECTS_ROOT = os.path.join(DATA_ROOT, 'projects')
 os.makedirs(PROJECTS_ROOT, exist_ok=True)
+
+ASSETS_ROOT = os.path.join(DATA_ROOT, 'assets')
+os.makedirs(ASSETS_ROOT, exist_ok=True)
 
 SHARE_ROOT = os.path.join(BASE_DIR, 'share')
 os.makedirs(SHARE_ROOT, exist_ok=True)
@@ -471,20 +503,21 @@ LOGGING = {
             'port': os.getenv('DJANGO_LOG_SERVER_PORT', 8282),
             'version': 1,
             'message_type': 'django',
-            'database_path': EVENTS_LOCAL_DB,
+            'database_path': EVENTS_LOCAL_DB_FILE,
         }
     },
+    'root': {
+        'handlers': ['console', 'server_file'],
+    },
     'loggers': {
-        'cvat.server': {
-            'handlers': ['console', 'server_file'],
+        'cvat': {
             'level': os.getenv('DJANGO_LOG_LEVEL', 'DEBUG'),
         },
 
         'django': {
-            'handlers': ['console', 'server_file'],
             'level': 'INFO',
-            'propagate': True
         },
+
         'vector': {
             'handlers': [],
             'level': 'INFO',
@@ -500,8 +533,6 @@ if os.getenv('DJANGO_LOG_SERVER_HOST'):
 DATA_UPLOAD_MAX_MEMORY_SIZE = 100 * 1024 * 1024  # 100 MB
 DATA_UPLOAD_MAX_NUMBER_FIELDS = None   # this django check disabled
 DATA_UPLOAD_MAX_NUMBER_FILES = None
-LOCAL_LOAD_MAX_FILES_COUNT = 500
-LOCAL_LOAD_MAX_FILES_SIZE = 512 * 1024 * 1024  # 512 MB
 
 RESTRICTIONS = {
     # allow access to analytics component to users with business role
@@ -509,19 +540,14 @@ RESTRICTIONS = {
     'analytics_visibility': True,
 }
 
-# http://www.grantjenks.com/docs/diskcache/tutorial.html#djangocache
 CACHES = {
    'default': {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
     },
    'media' : {
-       'BACKEND' : 'diskcache.DjangoCache',
-       'LOCATION' : CACHE_ROOT,
-       'TIMEOUT' : None,
-       'SHARDS': 32,
-       'OPTIONS' : {
-            'size_limit' : 2 ** 40, # 1 Tb
-       }
+       'BACKEND' : 'django.core.cache.backends.redis.RedisCache',
+       "LOCATION": f"redis://:{urllib.parse.quote(redis_password)}@{redis_host}:{redis_port}",
+       'TIMEOUT' : 3600 * 24, # 1 day
    }
 }
 
@@ -609,6 +635,8 @@ SPECTACULAR_SETTINGS = {
         'StorageMethod': 'cvat.apps.engine.models.StorageMethodChoice',
         'JobStatus': 'cvat.apps.engine.models.StatusChoice',
         'JobStage': 'cvat.apps.engine.models.StageChoice',
+        'JobType': 'cvat.apps.engine.models.JobType',
+        'QualityReportTarget': 'cvat.apps.quality_control.models.QualityReportTarget',
         'StorageType': 'cvat.apps.engine.models.StorageChoice',
         'SortingMethod': 'cvat.apps.engine.models.SortingMethod',
         'WebhookType': 'cvat.apps.webhooks.models.WebhookTypeChoice',
@@ -621,6 +649,7 @@ SPECTACULAR_SETTINGS = {
     'SCHEMA_COERCE_PATH_PK_SUFFIX': True,
     'SCHEMA_PATH_PREFIX': '/api',
     'SCHEMA_PATH_PREFIX_TRIM': False,
+    'GENERIC_ADDITIONAL_PROPERTIES': None,
 }
 
 # set similar UI restrictions
@@ -642,3 +671,31 @@ CLICKHOUSE = {
         'PASSWORD': os.getenv('CLICKHOUSE_PASSWORD', 'user'),
     }
 }
+
+# Database
+# https://docs.djangoproject.com/en/3.2/ref/settings/#databases
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'HOST': os.getenv('CVAT_POSTGRES_HOST', 'cvat_db'),
+        'NAME': os.getenv('CVAT_POSTGRES_DBNAME', 'cvat'),
+        'USER': os.getenv('CVAT_POSTGRES_USER', 'root'),
+        'PASSWORD': os.getenv('CVAT_POSTGRES_PASSWORD', ''),
+        'PORT': os.getenv('CVAT_POSTGRES_PORT', 5432),
+    }
+}
+
+BUCKET_CONTENT_MAX_PAGE_SIZE =  500
+
+IMPORT_CACHE_FAILED_TTL = timedelta(days=90)
+IMPORT_CACHE_SUCCESS_TTL = timedelta(hours=1)
+IMPORT_CACHE_CLEAN_DELAY = timedelta(hours=2)
+
+ASSET_MAX_SIZE_MB = 10
+ASSET_SUPPORTED_TYPES = ('image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf', )
+ASSET_MAX_IMAGE_SIZE = 1920
+ASSET_MAX_COUNT_PER_GUIDE = 30
+
+SMOKESCREEN_ENABLED = True
+
+EXTRA_RULES_PATHS = []

@@ -5,16 +5,18 @@
 from .development import *
 import tempfile
 
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+    },
+}
+
 _temp_dir = tempfile.TemporaryDirectory(dir=BASE_DIR, suffix="cvat")
 BASE_DIR = _temp_dir.name
 
 DATA_ROOT = os.path.join(BASE_DIR, 'data')
 os.makedirs(DATA_ROOT, exist_ok=True)
-
-EVENTS_LOCAL_DB = os.path.join(DATA_ROOT,'logstash.db')
-os.makedirs(DATA_ROOT, exist_ok=True)
-if not os.path.exists(EVENTS_LOCAL_DB):
-    open(EVENTS_LOCAL_DB, 'w').close()
 
 MEDIA_DATA_ROOT = os.path.join(DATA_ROOT, 'data')
 os.makedirs(MEDIA_DATA_ROOT, exist_ok=True)
@@ -86,3 +88,7 @@ class PatchedDiscoverRunner(DiscoverRunner):
             config["ASYNC"] = False
 
         super().__init__(*args, **kwargs)
+
+# No need to profile unit tests
+INSTALLED_APPS.remove('silk')
+MIDDLEWARE.remove('silk.middleware.SilkyMiddleware')

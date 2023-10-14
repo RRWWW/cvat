@@ -16,7 +16,6 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
 from PIL import Image
 
 from cvat_sdk.api_client import apis, exceptions, models
-from cvat_sdk.core import git
 from cvat_sdk.core.downloading import Downloader
 from cvat_sdk.core.helpers import get_paginated_collection
 from cvat_sdk.core.progress import ProgressReporter
@@ -96,6 +95,7 @@ class Task(
                     "job_file_mapping",
                     "filename_pattern",
                     "cloud_storage_id",
+                    "server_files_exclude",
                 ],
             )
         )
@@ -348,8 +348,6 @@ class TasksRepo(
         annotation_path: str = "",
         annotation_format: str = "CVAT XML 1.1",
         status_check_period: int = None,
-        dataset_repository_url: str = "",
-        use_lfs: bool = False,
         pbar: Optional[ProgressReporter] = None,
     ) -> Task:
         """
@@ -379,15 +377,6 @@ class TasksRepo(
 
         if annotation_path:
             task.import_annotations(annotation_format, annotation_path, pbar=pbar)
-
-        if dataset_repository_url:
-            git.create_git_repo(
-                self._client,
-                task_id=task.id,
-                repo_url=dataset_repository_url,
-                status_check_period=status_check_period,
-                use_lfs=use_lfs,
-            )
 
         task.fetch()
 
@@ -449,6 +438,6 @@ class TasksRepo(
         )
 
         task_id = json.loads(response.data)["id"]
-        self._client.logger.info(f"Task has been imported sucessfully. Task ID: {task_id}")
+        self._client.logger.info(f"Task has been imported successfully. Task ID: {task_id}")
 
         return self.retrieve(task_id)

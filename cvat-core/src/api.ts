@@ -3,11 +3,6 @@
 //
 // SPDX-License-Identifier: MIT
 
-/**
- * External API which should be used by for development
- * @module API
- */
-
 import PluginRegistry from './plugins';
 import loggerStorage from './logger-storage';
 import { EventLogger } from './log';
@@ -25,13 +20,15 @@ import { FrameData } from './frames';
 import CloudStorage from './cloud-storage';
 import Organization from './organization';
 import Webhook from './webhook';
+import AnnotationGuide from './guide';
 
 import * as enums from './enums';
 
 import {
-    Exception, ArgumentError, DataError, ScriptingError, PluginError, ServerError,
+    Exception, ArgumentError, DataError, ScriptingError, ServerError,
 } from './exceptions';
 
+import { mask2Rle, rle2Mask } from './object-utils';
 import User from './user';
 import pjson from '../package.json';
 import config from './config';
@@ -147,9 +144,21 @@ function build() {
                 return result;
             },
         },
+        assets: {
+            async create(file: File, guideId: number) {
+                const result = await PluginRegistry.apiWrapper(cvat.assets.create, file, guideId);
+                return result;
+            },
+        },
         jobs: {
             async get(filter = {}) {
                 const result = await PluginRegistry.apiWrapper(cvat.jobs.get, filter);
+                return result;
+            },
+        },
+        frames: {
+            async getMeta(type, id) {
+                const result = await PluginRegistry.apiWrapper(cvat.frames.getMeta, type, id);
                 return result;
             },
         },
@@ -225,6 +234,12 @@ function build() {
             set removeUnderlyingMaskPixels(value: boolean) {
                 config.removeUnderlyingMaskPixels = value;
             },
+            get onOrganizationChange(): (orgId: number) => void {
+                return config.onOrganizationChange;
+            },
+            set onOrganizationChange(value: (orgId: number) => void) {
+                config.onOrganizationChange = value;
+            },
         },
         client: {
             version: `${pjson.version}`,
@@ -235,7 +250,6 @@ function build() {
             ArgumentError,
             DataError,
             ScriptingError,
-            PluginError,
             ServerError,
         },
         cloudStorages: {
@@ -264,6 +278,30 @@ function build() {
                 return result;
             },
         },
+        analytics: {
+            performance: {
+                async reports(filter = {}) {
+                    const result = await PluginRegistry.apiWrapper(cvat.analytics.performance.reports, filter);
+                    return result;
+                },
+            },
+            quality: {
+                async reports(filter: any) {
+                    const result = await PluginRegistry.apiWrapper(cvat.analytics.quality.reports, filter);
+                    return result;
+                },
+                async conflicts(filter: any) {
+                    const result = await PluginRegistry.apiWrapper(cvat.analytics.quality.conflicts, filter);
+                    return result;
+                },
+                settings: {
+                    async get(taskID: number) {
+                        const result = await PluginRegistry.apiWrapper(cvat.analytics.quality.settings.get, taskID);
+                        return result;
+                    },
+                },
+            },
+        },
         classes: {
             User,
             Project: implementProject(Project),
@@ -281,20 +319,34 @@ function build() {
             CloudStorage,
             Organization,
             Webhook,
+            AnnotationGuide,
+        },
+        utils: {
+            mask2Rle,
+            rle2Mask,
         },
     };
 
     cvat.server = Object.freeze(cvat.server);
     cvat.projects = Object.freeze(cvat.projects);
     cvat.tasks = Object.freeze(cvat.tasks);
+    cvat.assets = Object.freeze(cvat.assets);
     cvat.jobs = Object.freeze(cvat.jobs);
+    cvat.frames = Object.freeze(cvat.frames);
     cvat.users = Object.freeze(cvat.users);
     cvat.plugins = Object.freeze(cvat.plugins);
     cvat.lambda = Object.freeze(cvat.lambda);
+    // logger: todo: logger storage implemented other way
+    cvat.config = Object.freeze(cvat.config);
     cvat.client = Object.freeze(cvat.client);
     cvat.enums = Object.freeze(cvat.enums);
+    cvat.exceptions = Object.freeze(cvat.exceptions);
     cvat.cloudStorages = Object.freeze(cvat.cloudStorages);
     cvat.organizations = Object.freeze(cvat.organizations);
+    cvat.webhooks = Object.freeze(cvat.webhooks);
+    cvat.analytics = Object.freeze(cvat.analytics);
+    cvat.classes = Object.freeze(cvat.classes);
+    cvat.utils = Object.freeze(cvat.utils);
 
     const implemented = Object.freeze(implementAPI(cvat));
     return implemented;
